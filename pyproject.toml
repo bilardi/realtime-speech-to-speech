@@ -180,7 +180,7 @@ max-complexity = 10
 # ---------------------------------------------------------------------------
 [tool.pyright]
 exclude = ["**/__pycache__"]
-include = ["app", "audio_client", "bench"]
+include = ["app", "audio_client", "benchmarks"]
 pythonVersion = "3.13"
 reportMissingTypeStubs = false
 typeCheckingMode = "strict"
