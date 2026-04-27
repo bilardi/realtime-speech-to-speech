@@ -1,5 +1,6 @@
 """Test the WebSocket session lifecycle."""
 
+import json
 from unittest.mock import AsyncMock
 
 import pytest
@@ -64,3 +65,38 @@ def test_unregister_listener_clears_slot() -> None:
     lid = mgr.register_listener(AsyncMock())
     mgr.unregister_listener(lid)
     assert not mgr.has_listener()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_sends_text_json_to_listener() -> None:
+    """`dispatch_text` sends a JSON message to the listener WebSocket."""
+    mgr = SessionManager()
+    ws = AsyncMock()
+    mgr.register_listener(ws)
+
+    await mgr.dispatch_text(text="hello world", lang="en-US", error=None)
+
+    ws.send_text.assert_awaited_once()
+    sent = ws.send_text.await_args.args[0]
+    parsed = json.loads(sent)
+    assert parsed == {"text": "hello world", "lang": "en-US", "error": None}
+
+
+@pytest.mark.asyncio
+async def test_dispatch_sends_audio_binary_to_listener() -> None:
+    """`dispatch_audio` sends raw bytes to the listener WebSocket."""
+    mgr = SessionManager()
+    ws = AsyncMock()
+    mgr.register_listener(ws)
+
+    await mgr.dispatch_audio(b"chunk1")
+
+    ws.send_bytes.assert_awaited_once_with(b"chunk1")
+
+
+@pytest.mark.asyncio
+async def test_dispatch_no_listener_is_noop() -> None:
+    """When no listener is registered, dispatch is a noop and does not raise."""
+    mgr = SessionManager()
+    await mgr.dispatch_text(text="x", lang="en-US", error=None)
+    await mgr.dispatch_audio(b"y")

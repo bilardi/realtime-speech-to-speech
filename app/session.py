@@ -7,6 +7,7 @@ close the WebSocket with code 4409.
 
 from __future__ import annotations
 
+import json
 from typing import Protocol
 from uuid import uuid4
 
@@ -97,3 +98,22 @@ class SessionManager:
     def listener_ws(self) -> WebSocketLike | None:
         """Return the active listener WebSocket, or None if not registered."""
         return self._listener_ws
+
+    async def dispatch_text(self, *, text: str, lang: str, error: str | None) -> None:
+        """Send a JSON text payload to the listener if one is registered.
+
+        Args:
+            text: Translated text (or "..." on translate failure).
+            lang: BCP-47 target language code, e.g. "en-US".
+            error: Error tag ("translate_failed", "polly_failed") or None.
+        """
+        if self._listener_ws is None:
+            return
+        payload = json.dumps({"text": text, "lang": lang, "error": error})
+        await self._listener_ws.send_text(payload)
+
+    async def dispatch_audio(self, audio: bytes) -> None:
+        """Send a raw audio binary frame to the listener if one is registered."""
+        if self._listener_ws is None:
+            return
+        await self._listener_ws.send_bytes(audio)
