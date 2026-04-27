@@ -1,2 +1,41 @@
 <!doctype html>
-<html><head><title>Speech-to-Speech</title></head><body>placeholder</body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speech-to-Speech</title>
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      color: #fff;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 1rem;
+    }
+    #status {
+      position: fixed;
+      top: 0.5rem;
+      right: 0.5rem;
+      font-size: 0.8rem;
+      opacity: 0.6;
+    }
+    #transcript {
+      font-size: 2rem;
+      max-width: 90%;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .error { color: #888; font-style: italic; }
+  </style>
+</head>
+<body>
+  <div id="status">connecting...</div>
+  <div id="transcript">waiting for speaker</div>
+  <script src="/static/app.js"></script>
+</body>
+</html>
