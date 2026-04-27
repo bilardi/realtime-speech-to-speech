@@ -142,7 +142,6 @@ pythonpath = ["."]
 # ---------------------------------------------------------------------------
 [tool.ruff]
 exclude = [".venv"]
-include = ["app", "audio_client", "bench"]
 fix = true
 line-length = 100
 output-format = "grouped"
