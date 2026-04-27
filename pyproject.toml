@@ -23,6 +23,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "boto3-stubs[polly,translate]",
   "bump-my-version",
   "git-cliff",
   "httpx",
@@ -162,7 +163,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["D104"]
-"tests/**" = ["ANN", "S101"]
+"tests/**" = ["ANN", "INP001", "S101"]
 
 [tool.ruff.format]
 docstring-code-format = true
