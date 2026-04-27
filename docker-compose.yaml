@@ -1,0 +1,14 @@
+services:
+  server:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+      - AWS_REGION=${AWS_REGION:-eu-west-1}
+      - SOURCE_LANG=${SOURCE_LANG:-it-IT}
+      - TARGET_LANG=${TARGET_LANG:-en-US}
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ${LOCAL_HOME}/.aws:/root/.aws:ro
+    restart: unless-stopped
