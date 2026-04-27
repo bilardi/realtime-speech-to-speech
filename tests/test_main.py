@@ -45,3 +45,20 @@ def test_ws_speak_accepts_supported_language(mock_open_stream: AsyncMock) -> Non
     client = TestClient(app)
     with client.websocket_connect("/ws/speak?lang=it-IT") as ws:
         ws.close()
+
+
+def test_ws_listen_rejects_unsupported_language() -> None:
+    """`/ws/listen` with an unsupported language closes the connection (does not accept it)."""
+    client = TestClient(app)
+    with (
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/listen?lang=xx-XX") as ws,
+    ):
+        ws.receive_bytes()
+
+
+def test_ws_listen_accepts_supported_language() -> None:
+    """`/ws/listen` accepts a supported target language."""
+    client = TestClient(app)
+    with client.websocket_connect("/ws/listen?lang=en-US") as ws:
+        ws.close()

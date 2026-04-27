@@ -117,3 +117,35 @@ async def ws_speak(websocket: WebSocket, lang: str = "it-IT") -> None:
         await websocket.close(code=4500, reason="transcribe_lost")
     finally:
         session_manager.unregister_speaker(speaker_id)
+
+
+@app.websocket("/ws/listen")
+async def ws_listen(websocket: WebSocket, lang: str = "en-US") -> None:
+    """Receive translated text (JSON) and audio chunks (binary) from the speaker dispatch.
+
+    Args:
+        websocket: incoming WebSocket connection from the browser.
+        lang: BCP-47 target language. Must be in `_SUPPORTED_TARGET_LANGS`,
+            otherwise the connection is closed with code 4400.
+    """
+    if lang not in _SUPPORTED_TARGET_LANGS:
+        await websocket.close(code=4400, reason="lang not supported")
+        return
+
+    await websocket.accept()
+    try:
+        listener_id = session_manager.register_listener(websocket)
+    except SessionConflictError:
+        await websocket.close(code=4409, reason="listener_busy")
+        return
+
+    try:
+        # Keep the connection open; dispatch happens from the speaker side via
+        # session_manager.dispatch_text / dispatch_audio. We just block until
+        # the client disconnects.
+        while True:
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        session_manager.unregister_listener(listener_id)
