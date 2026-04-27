@@ -1,0 +1,15 @@
+*#*
+*.egg-info
+*.pyc
+*.wav
+*~
+.env
+.pytest_cache
+.ruff_cache
+.venv
+__pycache__
+dist
+logs
+POST.md
+recordings
+TODO.md
