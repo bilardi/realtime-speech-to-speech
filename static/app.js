@@ -4,6 +4,7 @@
 
   const statusEl = document.getElementById("status");
   const transcriptEl = document.getElementById("transcript");
+  const enableBtn = document.getElementById("enable-audio");
 
   let audioCtx = null;
   let nextStartTime = 0;
@@ -30,6 +31,12 @@
 
   function enqueueAudioChunk(buf) {
     const ctx = ensureAudioCtx();
+    // Browser autoplay policy: AudioContext starts suspended until a user gesture.
+    // Drop incoming chunks while suspended, otherwise they queue up and replay
+    // all at once when the context resumes.
+    if (ctx.state === "suspended") {
+      return;
+    }
     const samples = pcmInt16ToFloat32(buf);
     const audioBuffer = ctx.createBuffer(1, samples.length, SAMPLE_RATE);
     audioBuffer.getChannelData(0).set(samples);
@@ -42,6 +49,17 @@
     source.start(when);
     nextStartTime = when + audioBuffer.duration;
   }
+
+  function unlockAudio() {
+    const ctx = ensureAudioCtx();
+    enableBtn.style.display = "none";
+    if (ctx.state === "suspended") {
+      ctx.resume().then(() => {
+        nextStartTime = ctx.currentTime;
+      });
+    }
+  }
+  enableBtn.addEventListener("click", unlockAudio);
 
   function setStatus(s) {
     statusEl.textContent = s;

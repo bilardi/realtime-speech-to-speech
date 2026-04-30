@@ -31,10 +31,21 @@
       line-height: 1.4;
     }
     .error { color: #888; font-style: italic; }
+    #enable-audio {
+      font-size: 1.5rem;
+      padding: 1rem 2rem;
+      background: #fff;
+      color: #000;
+      border: none;
+      border-radius: 0.5rem;
+      cursor: pointer;
+    }
+    #enable-audio:hover { background: #ddd; }
   </style>
 </head>
 <body>
   <div id="status">connecting...</div>
+  <button id="enable-audio">enable audio</button>
   <div id="transcript">waiting for speaker</div>
   <script src="/static/app.js"></script>
 </body>
