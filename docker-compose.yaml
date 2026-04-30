@@ -11,4 +11,5 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ${LOCAL_HOME}/.aws:/root/.aws:ro
+      - ./logs:/code/logs:Z
     restart: unless-stopped
