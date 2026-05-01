@@ -1,9 +1,9 @@
 """Amazon Polly synthesis wrapper.
 
-M1.B: delegates to the local `polly-streaming` package, which talks to Polly's
-HTTP/2 bidirectional streaming endpoint (`StartSpeechSynthesisStream`) via
-SigV4 + rolling chunk-signature - the API boto3 does not expose. The wrapper
-keeps the M1.A async-iterator interface so `app.pipeline` is unchanged.
+Delegates to the `polly-streaming` package, which talks to Polly's HTTP/2
+bidirectional streaming endpoint (`StartSpeechSynthesisStream`) via SigV4
+plus rolling chunk-signature. Exposes an async-iterator interface so
+`app.pipeline` can yield audio bytes as they arrive from Polly.
 """
 
 from __future__ import annotations

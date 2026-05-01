@@ -1,8 +1,8 @@
 """WebSocket session lifecycle manager.
 
-In M1, exactly one speaker and one listener are allowed (decision 7).
-Subsequent registrations raise SessionConflictError; the caller is expected to
-close the WebSocket with code 4409.
+Exactly one speaker and one listener are allowed at any time. Subsequent
+registrations raise SessionConflictError; the caller is expected to close
+the WebSocket with code 4409.
 """
 
 from __future__ import annotations

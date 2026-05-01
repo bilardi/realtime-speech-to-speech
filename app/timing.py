@@ -1,4 +1,4 @@
-"""Per-utterance timing log for latency measurement (decision 16).
+"""Per-utterance timing log for latency measurement.
 
 Stateless API: callers manage the correlation_id lifecycle (one per utterance) and
 pass it explicitly to `log()` for each stage event. This avoids the bug of a single

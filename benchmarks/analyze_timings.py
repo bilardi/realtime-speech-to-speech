@@ -3,8 +3,8 @@
 The timing log produced by `app.timing.UtteranceTiming` records four events per
 utterance: `transcribe_finalized`, `translate_done`, `polly_first_chunk`,
 `listener_first_chunk`. ASR latency is not measured server-side; it is derived
-implicitly from end-to-end audio cross-correlation (`bench/measure_e2e.py`,
-Task 21) minus the sum of the stage deltas computed here.
+implicitly from end-to-end audio cross-correlation
+(`benchmarks/measure_e2e.py`) minus the sum of the stage deltas computed here.
 """
 
 from __future__ import annotations
