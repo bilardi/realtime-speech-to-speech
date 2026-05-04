@@ -23,6 +23,24 @@ class PollyError(RuntimeError):
     """Raised when Polly synthesis fails."""
 
 
+_USE_POOL_FALSY = frozenset({"false", "0", "no"})
+
+
+def _parse_use_pool() -> bool:
+    """Read the ``POLLY_USE_POOL`` env var.
+
+    Returns:
+        ``False`` when the variable is set to ``"false"``, ``"0"``, or
+        ``"no"`` (case-insensitive). ``True`` when unset or set to anything
+        else. Default ``True`` matches the polly-streaming library default
+        and the production target (pool reduces TLS / HTTP/2 setup cost).
+    """
+    raw = os.environ.get("POLLY_USE_POOL")
+    if raw is None:
+        return True
+    return raw.strip().lower() not in _USE_POOL_FALSY
+
+
 async def synthesize_stream(
     *,
     text: str,
@@ -32,6 +50,12 @@ async def synthesize_stream(
     sample_rate: str = "16000",
 ) -> AsyncIterator[bytes]:
     """Synthesize text and yield audio bytes as Polly emits them.
+
+    Reads ``POLLY_USE_POOL`` from the environment to enable or disable the
+    polly-streaming HTTP/2 connection pool per call. Default ``True``;
+    ``"false"``, ``"0"``, or ``"no"`` disable it (case-insensitive). Useful
+    for A/B latency comparisons against the no-pool baseline at the same
+    code path.
 
     Args:
         text: Input text to synthesize.
@@ -61,6 +85,7 @@ async def synthesize_stream(
             language_code=os.environ.get("POLLY_LANGUAGE_CODE", "en-US"),
             output_format=output_format,
             sample_rate=sample_rate,
+            use_pool=_parse_use_pool(),
         ):
             yield chunk
     except PollyStreamError as exc:

@@ -102,3 +102,83 @@ async def test_synthesize_stream_maps_transport_runtime_error_to_polly_error() -
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
             pass
+
+
+@pytest.mark.asyncio
+async def test_synthesize_stream_default_use_pool_is_true_when_env_unset() -> None:
+    """Without `POLLY_USE_POOL` set, the wrapper passes `use_pool=True`."""
+    captured: dict[str, object] = {}
+
+    def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
+        captured.update(kwargs)
+        return _async_iter([b"audio"])
+
+    with (
+        patch.dict("os.environ", {}, clear=False),
+        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+    ):
+        # Make sure POLLY_USE_POOL is genuinely unset for this test
+        import os  # noqa: PLC0415
+
+        os.environ.pop("POLLY_USE_POOL", None)
+        async for _ in synthesize_stream(text="x", voice_id="Matthew"):
+            pass
+
+    assert captured["use_pool"] is True
+
+
+@pytest.mark.asyncio
+async def test_synthesize_stream_use_pool_false_when_env_disables_pool() -> None:
+    """`POLLY_USE_POOL=false` propagates `use_pool=False` to polly-streaming."""
+    captured: dict[str, object] = {}
+
+    def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
+        captured.update(kwargs)
+        return _async_iter([b"audio"])
+
+    with (
+        patch.dict("os.environ", {"POLLY_USE_POOL": "false"}, clear=False),
+        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+    ):
+        async for _ in synthesize_stream(text="x", voice_id="Matthew"):
+            pass
+
+    assert captured["use_pool"] is False
+
+
+@pytest.mark.asyncio
+async def test_synthesize_stream_use_pool_true_when_env_explicitly_enables_pool() -> None:
+    """`POLLY_USE_POOL=true` propagates `use_pool=True`."""
+    captured: dict[str, object] = {}
+
+    def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
+        captured.update(kwargs)
+        return _async_iter([b"audio"])
+
+    with (
+        patch.dict("os.environ", {"POLLY_USE_POOL": "true"}, clear=False),
+        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+    ):
+        async for _ in synthesize_stream(text="x", voice_id="Matthew"):
+            pass
+
+    assert captured["use_pool"] is True
+
+
+@pytest.mark.asyncio
+async def test_synthesize_stream_use_pool_env_parse_is_case_insensitive() -> None:
+    """`POLLY_USE_POOL=FALSE` (uppercase) is parsed as disabled."""
+    captured: dict[str, object] = {}
+
+    def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
+        captured.update(kwargs)
+        return _async_iter([b"audio"])
+
+    with (
+        patch.dict("os.environ", {"POLLY_USE_POOL": "FALSE"}, clear=False),
+        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+    ):
+        async for _ in synthesize_stream(text="x", voice_id="Matthew"):
+            pass
+
+    assert captured["use_pool"] is False
