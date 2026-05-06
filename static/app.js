@@ -1,6 +1,8 @@
 (() => {
-  const lang = new URL(window.location.href).searchParams.get("lang") || "en-US";
-  const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/listen?lang=${encodeURIComponent(lang)}`;
+  const params = new URL(window.location.href).searchParams;
+  const room = params.get("room") || "1";
+  const lang = params.get("lang") || "en-US";
+  const wsUrl = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws/listen?room=${encodeURIComponent(room)}&lang=${encodeURIComponent(lang)}`;
 
   const statusEl = document.getElementById("status");
   const transcriptEl = document.getElementById("transcript");
@@ -62,7 +64,7 @@
   enableBtn.addEventListener("click", unlockAudio);
 
   function setStatus(s) {
-    statusEl.textContent = s;
+    statusEl.textContent = `room ${room} · ${lang} · ${s}`;
   }
 
   function setText(text, isError) {
