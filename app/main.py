@@ -26,6 +26,13 @@ load_dotenv()
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 TIMING_LOG = Path(__file__).resolve().parent.parent / "logs" / "timings.jsonl"
 
+# Optional per-utterance trace at logger.debug level: enabled when
+# ``DEBUG_LOG_PIPELINE_TRACE=1`` is set in the environment. Disabled by
+# default so production logs only carry uvicorn access lines plus warnings
+# / errors. The timing JSON is always written to ``logs/timings.jsonl``
+# regardless of this flag.
+_PIPELINE_TRACE = os.environ.get("DEBUG_LOG_PIPELINE_TRACE") == "1"
+
 # Supported source / target languages (extend as needed)
 _SUPPORTED_SOURCE_LANGS = {"it-IT", "en-US"}
 _SUPPORTED_TARGET_LANGS = {"en-US", "it-IT"}
@@ -66,10 +73,14 @@ async def _consume_transcripts(
     async for finalized in iter_finalized(stream.output_stream):  # pyright: ignore[reportArgumentType]
         cid = timing.new_id()
         timing.log(cid, "transcribe_finalized")
+        if _PIPELINE_TRACE:
+            logger.debug("Transcribe finalized: {!r}", finalized)
         first_audio_logged = False
         async for ev in pipeline.process_finalized(finalized):
             if ev.kind == "text":
                 timing.log(cid, "translate_done")
+                if _PIPELINE_TRACE:
+                    logger.debug("Translate done: {!r}", ev.text)
                 await session_manager.dispatch_text(
                     text=ev.text or "",
                     lang=ev.lang or target_lang,
@@ -78,6 +89,8 @@ async def _consume_transcripts(
             elif ev.kind == "audio":
                 if not first_audio_logged:
                     timing.log(cid, "polly_first_chunk")
+                    if _PIPELINE_TRACE:
+                        logger.debug("Polly first audio chunk: {} bytes", len(ev.audio or b""))
                 await session_manager.dispatch_audio(ev.audio or b"")
                 if not first_audio_logged:
                     timing.log(cid, "listener_first_chunk")
