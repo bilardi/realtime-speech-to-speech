@@ -7,9 +7,14 @@ the WebSocket with code 4409.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Protocol
 from uuid import uuid4
+
+from loguru import logger
+
+_DISPATCH_TIMEOUT_S = 2.0
 
 
 class WebSocketLike(Protocol):
@@ -102,18 +107,43 @@ class SessionManager:
     async def dispatch_text(self, *, text: str, lang: str, error: str | None) -> None:
         """Send a JSON text payload to the listener if one is registered.
 
+        Wraps the WebSocket send in a timeout plus broad except so that a
+        half-broken listener (browser closed, network blip) does not bubble
+        up the speaker pipeline and tear down the speaker session. On
+        failure the listener slot is cleared, leaving the speaker free to
+        keep processing utterances; the next listener can register fresh.
+
         Args:
             text: Translated text (or "..." on translate failure).
             lang: BCP-47 target language code, e.g. "en-US".
             error: Error tag ("translate_failed", "polly_failed") or None.
         """
-        if self._listener_ws is None:
+        ws = self._listener_ws
+        if ws is None:
             return
         payload = json.dumps({"text": text, "lang": lang, "error": error})
-        await self._listener_ws.send_text(payload)
+        try:
+            await asyncio.wait_for(ws.send_text(payload), timeout=_DISPATCH_TIMEOUT_S)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("listener text dispatch failed, dropping listener: {}", exc)
+            if self._listener_ws is ws:
+                self._listener_ws = None
+                self._listener_id = None
 
     async def dispatch_audio(self, audio: bytes) -> None:
-        """Send a raw audio binary frame to the listener if one is registered."""
-        if self._listener_ws is None:
+        """Send a raw audio binary frame to the listener if one is registered.
+
+        Same hardening as ``dispatch_text``: timeout plus broad except plus
+        clear-on-failure, to keep the speaker pipeline running when the
+        listener disappears mid-stream.
+        """
+        ws = self._listener_ws
+        if ws is None:
             return
-        await self._listener_ws.send_bytes(audio)
+        try:
+            await asyncio.wait_for(ws.send_bytes(audio), timeout=_DISPATCH_TIMEOUT_S)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("listener audio dispatch failed, dropping listener: {}", exc)
+            if self._listener_ws is ws:
+                self._listener_ws = None
+                self._listener_id = None

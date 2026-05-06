@@ -100,3 +100,70 @@ async def test_dispatch_no_listener_is_noop() -> None:
     mgr = SessionManager()
     await mgr.dispatch_text(text="x", lang="en-US", error=None)
     await mgr.dispatch_audio(b"y")
+
+
+@pytest.mark.asyncio
+async def test_dispatch_text_drops_listener_on_send_failure() -> None:
+    """If `send_text` raises, the listener slot is cleared and the call does not propagate."""
+    mgr = SessionManager()
+    ws = AsyncMock()
+    ws.send_text.side_effect = ConnectionResetError("listener gone")
+    mgr.register_listener(ws)
+
+    await mgr.dispatch_text(text="x", lang="en-US", error=None)
+
+    assert not mgr.has_listener()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_audio_drops_listener_on_send_failure() -> None:
+    """If `send_bytes` raises, the listener slot is cleared and the call does not propagate."""
+    mgr = SessionManager()
+    ws = AsyncMock()
+    ws.send_bytes.side_effect = ConnectionResetError("listener gone")
+    mgr.register_listener(ws)
+
+    await mgr.dispatch_audio(b"chunk")
+
+    assert not mgr.has_listener()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_audio_drops_listener_on_send_timeout() -> None:
+    """If `send_bytes` hangs, the dispatch times out and the listener slot is cleared."""
+    import asyncio  # noqa: PLC0415
+
+    mgr = SessionManager()
+    ws = AsyncMock()
+
+    async def hang(_payload: bytes) -> None:
+        await asyncio.sleep(60)
+
+    ws.send_bytes.side_effect = hang
+    mgr.register_listener(ws)
+
+    # Patch the timeout to a small value so the test runs quickly.
+    with pytest.MonkeyPatch().context() as mp:
+        mp.setattr("app.session._DISPATCH_TIMEOUT_S", 0.05)
+        await mgr.dispatch_audio(b"chunk")
+
+    assert not mgr.has_listener()
+
+
+@pytest.mark.asyncio
+async def test_dispatch_text_does_not_clear_listener_if_replaced_concurrently() -> None:
+    """If the listener slot is already a different ws by the time send fails, do not clear it."""
+    mgr = SessionManager()
+    failing_ws = AsyncMock()
+    failing_ws.send_text.side_effect = ConnectionResetError("first listener gone")
+    mgr.register_listener(failing_ws)
+    # simulate a concurrent listener swap before the send completes
+    mgr.unregister_listener(mgr._listener_id or "")  # noqa: SLF001
+    new_ws = AsyncMock()
+    mgr.register_listener(new_ws)
+
+    await mgr.dispatch_text(text="x", lang="en-US", error=None)
+
+    # the new listener slot must not have been cleared
+    assert mgr.has_listener()
+    assert mgr.listener_ws is new_ws
