@@ -56,3 +56,32 @@ def voice_for(language_code: str) -> str | None:
     """
     voices = list_voices(language_code)
     return voices[0].get("Id") if voices else None
+
+
+def supported_target_languages() -> set[str]:
+    """Return the set of BCP-47 codes that have at least one generative voice.
+
+    Calls Polly DescribeVoices paginated, filters voices supporting the
+    `generative` engine, and returns the distinct LanguageCode set. Used at
+    server startup to populate the runtime allowlist for `/ws/listen`.
+
+    Returns:
+        Set of distinct BCP-47 language codes.
+    """
+    client = _client()
+    langs: set[str] = set()
+    next_token: str | None = None
+    while True:
+        kwargs: dict[str, str] = {}
+        if next_token is not None:
+            kwargs["NextToken"] = next_token
+        response = client.describe_voices(**kwargs)  # pyright: ignore[reportArgumentType]
+        for v in response.get("Voices", []):
+            if "generative" in v.get("SupportedEngines", []):
+                code = v.get("LanguageCode")
+                if code:
+                    langs.add(code)
+        next_token = response.get("NextToken")
+        if not next_token:
+            break
+    return langs

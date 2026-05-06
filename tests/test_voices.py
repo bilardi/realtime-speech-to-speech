@@ -51,3 +51,50 @@ def test_voice_for_returns_none_when_no_generative(mock_client: MagicMock) -> No
     }
 
     assert voice_for("en-US") is None
+
+
+@patch("app.voices.boto3.client")
+def test_supported_target_languages_returns_distinct_generative_codes(
+    mock_client: MagicMock,
+) -> None:
+    """Return the deduplicated set of LanguageCode with at least one generative voice."""
+    mock_client.return_value.describe_voices.return_value = {
+        "Voices": [
+            {"Id": "Matthew", "LanguageCode": "en-US", "SupportedEngines": ["generative"]},
+            {"Id": "Ruth", "LanguageCode": "en-US", "SupportedEngines": ["generative"]},
+            {"Id": "Lucia", "LanguageCode": "es-ES", "SupportedEngines": ["generative"]},
+            {"Id": "Joanna", "LanguageCode": "en-US", "SupportedEngines": ["neural"]},
+        ]
+    }
+
+    from app.voices import supported_target_languages  # noqa: PLC0415
+
+    langs = supported_target_languages()
+
+    assert langs == {"en-US", "es-ES"}
+
+
+@patch("app.voices.boto3.client")
+def test_supported_target_languages_paginates(mock_client: MagicMock) -> None:
+    """supported_target_languages follows NextToken across pages."""
+    mock_client.return_value.describe_voices.side_effect = [
+        {
+            "Voices": [
+                {"Id": "Matthew", "LanguageCode": "en-US", "SupportedEngines": ["generative"]},
+            ],
+            "NextToken": "page2",
+        },
+        {
+            "Voices": [
+                {"Id": "Bianca", "LanguageCode": "it-IT", "SupportedEngines": ["generative"]},
+            ],
+        },
+    ]
+
+    from app.voices import supported_target_languages  # noqa: PLC0415
+
+    langs = supported_target_languages()
+
+    expected_pages = 2
+    assert langs == {"en-US", "it-IT"}
+    assert mock_client.return_value.describe_voices.call_count == expected_pages
