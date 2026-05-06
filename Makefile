@@ -31,8 +31,10 @@ serve:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 .PHONY: client # run audio client
+DEVICE ?= default
+SOURCE_LANG ?= it-IT
 client:
-	uv run python -m audio_client --server ws://localhost:8000 --lang $${SOURCE_LANG:-it-IT} --device "$${DEVICE:-default}"
+	uv run python -m audio_client --server ws://localhost:8000 --lang $(SOURCE_LANG) --device "$(DEVICE)"
 
 .PHONY: major minor patch # bump version, regenerate CHANGELOG, push
 major:
