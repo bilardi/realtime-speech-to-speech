@@ -33,8 +33,9 @@ serve:
 .PHONY: client # run audio client
 DEVICE ?= default
 SOURCE_LANG ?= it-IT
+ROOM ?= 1
 client:
-	uv run python -m audio_client --server ws://localhost:8000 --lang $(SOURCE_LANG) --device "$(DEVICE)"
+	uv run python -m audio_client --server ws://localhost:8000 --lang $(SOURCE_LANG) --room $(ROOM) --device "$(DEVICE)"
 
 .PHONY: major minor patch # bump version, regenerate CHANGELOG, push
 major:
