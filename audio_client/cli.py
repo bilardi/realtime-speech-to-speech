@@ -22,9 +22,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--server", type=str, default="ws://localhost:8000", help="Server WebSocket URL"
     )
-    parser.add_argument(
-        "--ws-path", type=str, default="/ws/speak", help="WebSocket endpoint path"
-    )
+    parser.add_argument("--ws-path", type=str, default="/ws/speak", help="WebSocket endpoint path")
+    parser.add_argument("--room", type=str, default="1", help="Room id (default '1')")
     parser.add_argument(
         "--lang", type=str, default="it-IT", help="Language code (e.g. it-IT, en-US)"
     )
@@ -68,6 +67,7 @@ def resample(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
 async def stream_audio(
     server: str,
     ws_path: str,
+    room: str,
     lang: str,
     device: int | None,
 ) -> None:
@@ -76,10 +76,11 @@ async def stream_audio(
     Args:
         server: WebSocket server base URL.
         ws_path: WebSocket endpoint path (e.g. /ws/speak).
+        room: Room id.
         lang: BCP-47 language code.
         device: audio device index, or None for default.
     """
-    url = f"{server.rstrip('/')}{ws_path}?lang={lang}"
+    url = f"{server.rstrip('/')}{ws_path}?room={room}&lang={lang}"
     target_rate = 16000
     chunk_duration = 0.1
     device_info = sd.query_devices(device, "input")  # type: ignore[reportUnknownMemberType]
@@ -88,7 +89,7 @@ async def stream_audio(
 
     print(f"Connecting to {url}", flush=True)  # noqa: T201
     print(f"Device: {device_info['name']} ({src_rate} Hz)", flush=True)  # noqa: T201
-    print(f"Language: {lang}", flush=True)  # noqa: T201
+    print(f"Room: {room} | Language: {lang}", flush=True)  # noqa: T201
     print("Press Ctrl+C to stop", flush=True)  # noqa: T201
 
     async with websockets.connect(url) as ws:
@@ -134,4 +135,4 @@ def main() -> None:
         print(sd.query_devices())  # type: ignore[reportUnknownMemberType]  # noqa: T201
         return
 
-    asyncio.run(stream_audio(args.server, args.ws_path, args.lang, args.device))
+    asyncio.run(stream_audio(args.server, args.ws_path, args.room, args.lang, args.device))
