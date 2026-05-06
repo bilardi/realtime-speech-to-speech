@@ -1,25 +1,29 @@
 # Speech-to-Speech
 
-Real-time Italian-to-English speech translation POC built on Amazon Transcribe Streaming, Amazon Translate, and Amazon Polly bidirectional streaming. Single speaker (PC) plus single listener (mobile browser) on LAN, monodirectional.
+Real-time speech translation POC built on Amazon Transcribe Streaming, Amazon Translate, and Amazon Polly bidirectional streaming. Single speaker (PC) plus N listeners on LAN, each in its own target language, monodirectional.
 
 ## Architecture
 
-The flow is unidirectional: PCM from a system input device on the speaker side reaches the FastAPI server through a WebSocket, gets transcribed, translated, and synthesized into PCM audio that the browser side plays back over a second WebSocket alongside the translated text.
+The flow is unidirectional: PCM from a system input device on the speaker side reaches the FastAPI server through a WebSocket, gets transcribed once, then fans out to a Translate plus Polly pipeline per active target language. Each listener subscribes to its own language and receives JSON text plus binary PCM audio over a second WebSocket. Listeners on the same target language share one synthesis pass.
 
 ```mermaid
 flowchart LR
   M[mic] -->|PCM 16k| AC[audio_client]
-  AC -->|ws/speak| S[FastAPI server]
+  AC -->|ws/speak room=1| S[FastAPI server]
   S --> T[Transcribe Streaming]
-  T -->|finalized| TR[Translate]
-  TR --> P[Polly bidirectional]
-  P -->|audio chunks| S
-  S -->|ws/listen text + audio| B[browser display]
-  B --> SP[mobile speaker]
-  B --> SC[screen text]
+  T -->|finalized text| FO[Fan-out per active target]
+  FO -->|task en-US| P1[Translate + Polly en-US]
+  FO -->|task es-ES| P2[Translate + Polly es-ES]
+  FO -->|task fr-FR| P3[Translate + Polly fr-FR]
+  P1 -->|text + audio| S
+  P2 -->|text + audio| S
+  P3 -->|text + audio| S
+  S -->|ws/listen lang=en-US| B1[browser en]
+  S -->|ws/listen lang=es-ES| B2[browser es]
+  S -->|ws/listen lang=fr-FR| B3[browser fr]
 ```
 
-The server orchestrates the AWS pipeline sentence by sentence: it forwards every PCM frame to Amazon Transcribe Streaming, waits for a finalized transcript, then runs the Translate plus Polly stages and pushes JSON text plus binary audio chunks to the listener.
+The server orchestrates the AWS pipeline sentence by sentence: it forwards every PCM frame to Amazon Transcribe Streaming, waits for a finalized transcript, snapshots the set of target languages with at least one connected listener, and dispatches a parallel Translate plus Polly task per language; the resulting text and audio chunks are broadcast to all listeners on that language.
 
 ```mermaid
 sequenceDiagram
@@ -28,23 +32,36 @@ sequenceDiagram
   participant T as Transcribe
   participant TR as Translate
   participant P as Polly
-  participant B as Browser
+  participant Ben as Browser en
+  participant Bes as Browser es
 
-  AC->>S: ws/speak (PCM)
-  B->>S: ws/listen (lang=en-US)
+  AC->>S: ws/speak (room=1, PCM)
+  Ben->>S: ws/listen (room=1, lang=en-US)
+  Bes->>S: ws/listen (room=1, lang=es-ES)
   loop Streaming PCM
     AC->>S: PCM frame
     S->>T: send_audio_event
     T-->>S: TranscriptEvent (is_partial=true) IGNORED
   end
   T-->>S: TranscriptEvent (is_partial=false) "ciao mondo"
-  S->>TR: translate_text(it, en)
-  TR-->>S: "hello world"
-  S->>B: {"text":"hello world"}
-  S->>P: TextEvent + CloseStreamEvent
-  loop Audio chunks
-    P-->>S: AudioEvent (PCM chunk)
-    S->>B: binary chunk
+  par fan-out per active target
+    S->>TR: translate_text(it, en)
+    TR-->>S: "hello world"
+    S->>Ben: {"text":"hello world","lang":"en-US"}
+    S->>P: TextEvent + CloseStreamEvent (en voice)
+    loop Audio chunks
+      P-->>S: AudioEvent (PCM chunk)
+      S->>Ben: binary chunk
+    end
+  and
+    S->>TR: translate_text(it, es)
+    TR-->>S: "hola mundo"
+    S->>Bes: {"text":"hola mundo","lang":"es-ES"}
+    S->>P: TextEvent + CloseStreamEvent (es voice)
+    loop Audio chunks
+      P-->>S: AudioEvent (PCM chunk)
+      S->>Bes: binary chunk
+    end
   end
 ```
 
@@ -52,7 +69,7 @@ sequenceDiagram
 
 Three decoupled components, connected via WebSocket to a central server:
 
-1. **FastAPI server** (cloud or any PC): receives audio from the speaker, orchestrates the Amazon Transcribe + Translate + Polly pipeline, dispatches translated text plus audio chunks to the listener.
+1. **FastAPI server** (cloud or any PC): receives audio from the speaker, fans out the Amazon Translate + Polly pipeline per active target language, and dispatches translated text plus audio chunks to all listeners of each language.
 2. **Audio client** (Python script): captures audio from a system input device (microphone, mixer) and sends it as binary frames to the server.
 3. **Browser display** (HTML + JS, Web Audio API): receives JSON text and binary audio chunks, plays the audio gap-less and shows the translated text.
 
@@ -60,9 +77,12 @@ Three decoupled components, connected via WebSocket to a central server:
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/` | Browser display index page |
-| `WS` | `/ws/speak?lang=it-IT` | Receives PCM audio from the audio client |
-| `WS` | `/ws/listen?lang=en-US` | Sends translated text (JSON) and audio chunks (binary) to the browser |
+| `GET` | `/` | Browser display index page (defaults `?room=1&lang=en-US`) |
+| `GET` | `/api/languages` | JSON list of target languages discovered from Polly generative voices at startup |
+| `GET` | `/api/rooms` | JSON list of room ids with at least one connected speaker |
+| `GET` | `/rooms` | HTML page listing active rooms as anchors |
+| `WS` | `/ws/speak?room=1&lang=it-IT` | Receives PCM audio from the audio client; one speaker per room |
+| `WS` | `/ws/listen?room=1&lang=en-US` | Sends translated text (JSON) and audio chunks (binary) for one target language; N listeners per (room, lang) allowed |
 
 ## Security
 
@@ -123,10 +143,10 @@ In a separate terminal, start the audio client pointing at your input device:
 
 ```sh
 uv run python -m audio_client --list-devices
-uv run python -m audio_client --server ws://localhost:8000 --lang it-IT --device "<your-device-name>"
+uv run python -m audio_client --server ws://localhost:8000 --lang it-IT --room 1 --device "<your-device-name>"
 ```
 
-On the mobile, on the same LAN, open `http://<pc-lan-ip>:8000`. The page shows "waiting for speaker" while the listener is connected; when the speaker finalizes a sentence, the translated text and audio appear.
+On the mobile, on the same LAN, open `http://<pc-lan-ip>:8000/?room=1&lang=en-US`. Both `room` and `lang` are optional and default to `1` and `en-US` (or to the values of `SOURCE_LANG`/`TARGET_LANG` in `.env`). The page shows the active room and language in the status bar; when the speaker finalizes a sentence, the translated text and audio for the chosen language appear.
 
 ### Audio client
 
@@ -134,11 +154,14 @@ On the mobile, on the same LAN, open `http://<pc-lan-ip>:8000`. The page shows "
 # list audio devices
 uv run python -m audio_client --list-devices
 
-# send audio from default microphone in italian
+# send audio from default microphone in italian, default room "1"
 uv run python -m audio_client --server ws://localhost:8000
 
-# send audio from device 3 in english
+# send audio from device 3 in english, default room "1"
 uv run python -m audio_client --device 3 --lang en-US --server ws://localhost:8000
+
+# send audio from device 3 in english, into room "7"
+uv run python -m audio_client --device 3 --lang en-US --room 7 --server ws://localhost:8000
 
 # override the WebSocket path (default /ws/speak)
 uv run python -m audio_client --ws-path /ws/speak --server ws://localhost:8000
@@ -146,9 +169,19 @@ uv run python -m audio_client --ws-path /ws/speak --server ws://localhost:8000
 
 ### Display
 
-Open the page on the mobile (or any device on the same LAN as the server): `http://<pc-lan-ip>:8000`.
+Open the page on the mobile (or any device on the same LAN as the server): `http://<pc-lan-ip>:8000/?room=1&lang=en-US`. Both query parameters are optional; the defaults come from `.env` (`SOURCE_LANG`, `TARGET_LANG`) or, if missing, from the hardcoded fallbacks (`room=1`, `lang=en-US`).
 
-The default target language is `en-US`. Override via query string: `http://<pc-lan-ip>:8000/?lang=it-IT`.
+Multiple listeners can share the same `(room, lang)`; the synthesis runs once per (room, lang) per utterance and the audio chunks are broadcast to every connected listener of that language.
+
+To distribute one URL per target language (typical at a meetup with QR codes), discover the supported set from the server and generate one QR code per language. Example with `qrencode`:
+
+```sh
+curl -s http://<host>:8000/api/languages | jq -r '.languages[]' | while read lang; do
+  qrencode -o "listen-$lang.png" "http://<host>:8000/?room=1&lang=$lang"
+done
+```
+
+To list the active rooms (rooms with at least one speaker connected): `curl http://<host>:8000/api/rooms` for JSON, or open `http://<host>:8000/rooms` for an HTML index.
 
 ### Latency measurement
 
@@ -175,7 +208,7 @@ app/
     polly.py  # Amazon Polly synthesis wrapper
     voices.py  # Polly voice discovery (generative engine filter)
     pipeline.py  # AWS-only orchestrator: Transcribe finalized -> Translate -> Polly
-    session.py  # WebSocket lifecycle: one speaker + one listener
+    rooms.py  # WebSocket lifecycle: rooms with one speaker plus N listeners per target language
     timing.py  # per-utterance JSON-line timing log
 audio_client/
     __init__.py
@@ -191,7 +224,7 @@ benchmarks/
 tests/
     test_main.py
     test_pipeline.py
-    test_session.py
+    test_rooms.py
     test_polly.py
     test_translate.py
     test_transcribe.py
