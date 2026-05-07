@@ -121,7 +121,7 @@ async def _dispatch_for_target(  # noqa: PLR0913
     first_audio_logged = False
     async for ev in pipeline.process_finalized(text):
         if ev.kind == "text":
-            timing.log(cid, f"translate_done:{target}")
+            timing.log(cid, "translate_done")
             if _PIPELINE_TRACE:
                 logger.debug("Translate done [{}]: {!r}", target, ev.text)
             await registry.dispatch_text(
@@ -132,7 +132,7 @@ async def _dispatch_for_target(  # noqa: PLR0913
             )
         elif ev.kind == "audio":
             if not first_audio_logged:
-                timing.log(cid, f"polly_first_chunk:{target}")
+                timing.log(cid, "polly_first_chunk")
                 if _PIPELINE_TRACE:
                     logger.debug(
                         "Polly first audio chunk [{}]: {} bytes", target, len(ev.audio or b"")
@@ -141,7 +141,7 @@ async def _dispatch_for_target(  # noqa: PLR0913
                 room=room, target_lang=ev.lang or target, audio=ev.audio or b""
             )
             if not first_audio_logged:
-                timing.log(cid, f"listener_first_chunk:{target}")
+                timing.log(cid, "listener_first_chunk")
                 first_audio_logged = True
 
 
@@ -155,15 +155,18 @@ async def _consume_transcripts(
     # amazon-transcribe types output_stream as TranscriptResultStream, but it satisfies
     # the AsyncIterator[TranscriptEvent] protocol at runtime; pyright cannot see __anext__.
     async for finalized in iter_finalized(stream.output_stream):  # pyright: ignore[reportArgumentType]
-        cid = timing.new_id()
-        timing.log(cid, "transcribe_finalized")
         if _PIPELINE_TRACE:
             logger.debug("Transcribe finalized: {!r}", finalized)
         targets = registry.active_targets(room)
         if not targets:
             logger.debug("no active targets for room {}, skipping fan-out", room)
             continue
+        # One correlation_id per (utterance, target): each cid carries the full
+        # set of stage events the latency analyzer needs, and analyze_timings.py
+        # produces one row per (utterance, target) without changes.
         for target in targets:
+            cid = timing.new_id()
+            timing.log(cid, "transcribe_finalized")
             asyncio.create_task(  # noqa: RUF006
                 _dispatch_for_target(
                     room=room,
