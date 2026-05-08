@@ -8,6 +8,8 @@ services:
       - AWS_REGION=${AWS_REGION:-eu-west-1}
       - SOURCE_LANG=${SOURCE_LANG:-it-IT}
       - TARGET_LANG=${TARGET_LANG:-en-US}
+      - POLLY_USE_POOL=${POLLY_USE_POOL:-true}
+      - DEBUG_LOG_PIPELINE_TRACE=${DEBUG_LOG_PIPELINE_TRACE:-0}
       - PYTHONUNBUFFERED=1
     volumes:
       - ${LOCAL_HOME}/.aws:/root/.aws:ro
