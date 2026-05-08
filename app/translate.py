@@ -16,16 +16,28 @@ class TranslateError(RuntimeError):
     """Raised when the Amazon Translate call fails."""
 
 
+_translate_client: TranslateClient | None = None
+
+
 def _client() -> TranslateClient:
-    """Return a Translate boto3 client using AWS_REGION from env."""
-    # boto3.client has ~400 overloads; only polly/translate are typed via stubs,
-    # the rest return Unknown which pyright strict flags as partially unknown.
-    # Our literal "translate" call matches the typed overload, so the returned
-    # client is correctly typed even though the function symbol itself is partial.
-    return boto3.client(  # pyright: ignore[reportUnknownMemberType]
-        "translate",
-        region_name=os.environ.get("AWS_REGION", "eu-west-1"),
-    )
+    """Return the module-level Translate boto3 client, creating it on first call.
+
+    Cached for the process lifetime so subsequent ``translate()`` calls reuse
+    the same TCP/TLS pool maintained by botocore, avoiding the per-call cold
+    start (model loading, region routing, TLS handshake) that adds 100 to
+    300 ms to every translate operation when the client is fresh.
+    """
+    global _translate_client  # noqa: PLW0603
+    if _translate_client is None:
+        # boto3.client has ~400 overloads; only polly/translate are typed via stubs,
+        # the rest return Unknown which pyright strict flags as partially unknown.
+        # Our literal "translate" call matches the typed overload, so the returned
+        # client is correctly typed even though the function symbol itself is partial.
+        _translate_client = boto3.client(  # pyright: ignore[reportUnknownMemberType]
+            "translate",
+            region_name=os.environ.get("AWS_REGION", "eu-west-1"),
+        )
+    return _translate_client
 
 
 def translate(text: str, source: str, target: str) -> str:

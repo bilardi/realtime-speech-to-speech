@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from functools import lru_cache
 from typing import TYPE_CHECKING, cast
 
 import boto3
@@ -13,16 +14,28 @@ if TYPE_CHECKING:
     from mypy_boto3_polly.type_defs import VoiceTypeDef
 
 
+_voices_client: PollyClient | None = None
+
+
 def _client() -> PollyClient:
-    """Return a Polly boto3 client using AWS_REGION from env."""
-    # boto3.client has ~400 overloads; only polly/translate are typed via stubs,
-    # the rest return Unknown which pyright strict flags as partially unknown.
-    # Our literal "polly" call matches the typed overload, so the returned client
-    # is correctly typed even though the function symbol itself is partial.
-    return boto3.client(  # pyright: ignore[reportUnknownMemberType]
-        "polly",
-        region_name=os.environ.get("AWS_REGION", "eu-west-1"),
-    )
+    """Return the module-level Polly boto3 client, creating it on first call.
+
+    Cached for the process lifetime so subsequent ``describe_voices`` calls
+    reuse the same TCP/TLS pool maintained by botocore, avoiding the per-call
+    cold start that adds 100 to 300 ms to every voice lookup when the client
+    is fresh.
+    """
+    global _voices_client  # noqa: PLW0603
+    if _voices_client is None:
+        # boto3.client has ~400 overloads; only polly/translate are typed via stubs,
+        # the rest return Unknown which pyright strict flags as partially unknown.
+        # Our literal "polly" call matches the typed overload, so the returned client
+        # is correctly typed even though the function symbol itself is partial.
+        _voices_client = boto3.client(  # pyright: ignore[reportUnknownMemberType]
+            "polly",
+            region_name=os.environ.get("AWS_REGION", "eu-west-1"),
+        )
+    return _voices_client
 
 
 def list_voices(language_code: str) -> list[VoiceTypeDef]:
@@ -45,8 +58,14 @@ def list_voices(language_code: str) -> list[VoiceTypeDef]:
     ]
 
 
+@lru_cache(maxsize=64)
 def voice_for(language_code: str) -> str | None:
     """Return the ID of the first generative voice for a language, or None.
+
+    The result is cached for the process lifetime: the voice list returned
+    by AWS for a given language code does not change at runtime. Restart
+    the server to pick up new voices. Cache size 64 covers the full set of
+    Polly generative-supported languages with margin.
 
     Args:
         language_code: BCP-47 code.
