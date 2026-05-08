@@ -47,6 +47,13 @@ _SUPPORTED_TARGET_LANGS: set[str] = set()
 _DEFAULT_SOURCE_LANG = os.environ.get("SOURCE_LANG", "it-IT")
 _DEFAULT_TARGET_LANG = os.environ.get("TARGET_LANG", "en-US")
 
+# Strong references to the per-utterance fan-out tasks. Without this set, the
+# tasks become weakly referenced from the event loop only and are eligible
+# for garbage collection while still pending, which surfaces as
+# "Task was destroyed but it is pending!" warnings and (worse) silent loss
+# of pipeline events. Each task removes itself from the set on completion.
+_pending_dispatch_tasks: set[asyncio.Task[None]] = set()
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
@@ -167,7 +174,7 @@ async def _consume_transcripts(
         for target in targets:
             cid = timing.new_id()
             timing.log(cid, "transcribe_finalized")
-            asyncio.create_task(  # noqa: RUF006
+            task = asyncio.create_task(
                 _dispatch_for_target(
                     room=room,
                     source=source_short,
@@ -177,6 +184,8 @@ async def _consume_transcripts(
                     cid=cid,
                 )
             )
+            _pending_dispatch_tasks.add(task)
+            task.add_done_callback(_pending_dispatch_tasks.discard)
 
 
 @app.websocket("/ws/speak")

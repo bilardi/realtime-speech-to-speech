@@ -106,10 +106,7 @@ def test_ws_listen_accepts_supported_target(mock_boto: MagicMock) -> None:
 
 
 @patch("app.voices.boto3.client")
-@patch("app.main.open_stream")
-def test_ws_speak_accepts_and_lazy_validates(
-    mock_open_stream: AsyncMock, mock_boto: MagicMock
-) -> None:
+def test_ws_speak_accepts_and_lazy_validates(mock_boto: MagicMock) -> None:
     """`/ws/speak` accepts the connection, AWS Transcribe validates the lang lazily."""
     mock_boto.return_value.describe_voices.return_value = {
         "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
@@ -118,40 +115,44 @@ def test_ws_speak_accepts_and_lazy_validates(
     fake_stream.input_stream = AsyncMock()
     fake_stream.output_stream = AsyncMock()
     fake_stream.output_stream.__aiter__.return_value = iter([])
-    mock_open_stream.return_value = fake_stream
 
+    # _make_app() reloads `app.main`, so any patch on `app.main.open_stream` set
+    # before reload no longer applies (the reloaded module has a fresh import
+    # of the real symbol). Patch on the reloaded module via `patch.object` so
+    # the mock survives until the WS handler actually runs.
     main = _make_app()
     with (
+        patch.object(main, "open_stream", new_callable=AsyncMock) as mock_open_stream,
         TestClient(main.app) as client,
         client.websocket_connect("/ws/speak?room=1&lang=it-IT") as ws,
     ):
+        mock_open_stream.return_value = fake_stream
         ws.close()
 
 
 @patch("app.voices.boto3.client")
-@patch("app.main.open_stream")
-def test_ws_speak_closes_4400_on_transcribe_open_failure(
-    mock_open_stream: AsyncMock, mock_boto: MagicMock
-) -> None:
+def test_ws_speak_closes_4400_on_transcribe_open_failure(mock_boto: MagicMock) -> None:
     """If AWS Transcribe rejects the source lang, the speaker WS is closed with 4400."""
     mock_boto.return_value.describe_voices.return_value = {
         "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
     }
-    mock_open_stream.side_effect = RuntimeError("invalid language code")
 
     main = _make_app()
     with (
+        patch.object(main, "open_stream", new_callable=AsyncMock) as mock_open_stream,
         TestClient(main.app) as client,
-        pytest.raises(WebSocketDisconnect) as exc_info,
-        client.websocket_connect("/ws/speak?room=1&lang=zz-ZZ") as ws,
     ):
-        ws.receive_bytes()
+        mock_open_stream.side_effect = RuntimeError("invalid language code")
+        with (
+            pytest.raises(WebSocketDisconnect) as exc_info,
+            client.websocket_connect("/ws/speak?room=1&lang=zz-ZZ") as ws,
+        ):
+            ws.receive_bytes()
     assert exc_info.value.code == 4400  # noqa: PLR2004
 
 
 @patch("app.voices.boto3.client")
-@patch("app.main.open_stream")
-def test_ws_speak_conflict_per_room(mock_open_stream: AsyncMock, mock_boto: MagicMock) -> None:
+def test_ws_speak_conflict_per_room(mock_boto: MagicMock) -> None:
     """A second speaker in the same room is rejected with 4409."""
     mock_boto.return_value.describe_voices.return_value = {
         "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
@@ -161,17 +162,17 @@ def test_ws_speak_conflict_per_room(mock_open_stream: AsyncMock, mock_boto: Magi
         await asyncio.sleep(60)
         return AsyncMock()
 
-    mock_open_stream.side_effect = slow_open
-
     main = _make_app()
     with (
+        patch.object(main, "open_stream", new_callable=AsyncMock) as mock_open_stream,
         TestClient(main.app) as client,
-        client.websocket_connect("/ws/speak?room=1&lang=it-IT") as ws_a,
     ):
-        with (
-            pytest.raises(WebSocketDisconnect) as exc_info,
-            client.websocket_connect("/ws/speak?room=1&lang=it-IT") as ws_b,
-        ):
-            ws_b.receive_bytes()
-        assert exc_info.value.code == 4409  # noqa: PLR2004
-        ws_a.close()
+        mock_open_stream.side_effect = slow_open
+        with client.websocket_connect("/ws/speak?room=1&lang=it-IT") as ws_a:
+            with (
+                pytest.raises(WebSocketDisconnect) as exc_info,
+                client.websocket_connect("/ws/speak?room=1&lang=it-IT") as ws_b,
+            ):
+                ws_b.receive_bytes()
+            assert exc_info.value.code == 4409  # noqa: PLR2004
+            ws_a.close()
