@@ -61,8 +61,72 @@ def test_api_rooms_returns_rooms_with_speaker(mock_boto: MagicMock) -> None:
 
 
 @patch("app.voices.boto3.client")
+def test_languages_html_lists_links_when_no_auth(mock_boto: MagicMock) -> None:
+    """`GET /languages` renders HTML links to the listener page per supported lang."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [
+            {"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]},
+            {"Id": "Y", "LanguageCode": "de-DE", "SupportedEngines": ["generative"]},
+        ]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        response = client.get("/languages?room=1")
+    assert response.status_code == HTTPStatus.OK
+    assert "?room=1&lang=en-US" in response.text
+    assert "?room=1&lang=de-DE" in response.text
+    # link text is the human-readable language name, not the raw BCP-47 code
+    assert "English (US)" in response.text
+    assert "German (Germany)" in response.text
+    # no listener token configured = no token in the rendered links
+    assert "token=" not in response.text
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_languages_html_rejects_when_token_missing(mock_boto: MagicMock) -> None:
+    """`GET /languages` returns 401 when LISTENER_TOKEN is set but token query is missing."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        response = client.get("/languages?room=1")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_languages_html_rejects_when_token_mismatch(mock_boto: MagicMock) -> None:
+    """`GET /languages` returns 401 when the token query does not match LISTENER_TOKEN."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        response = client.get("/languages?room=1&token=wrong")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_languages_html_renders_links_with_token_when_authenticated(
+    mock_boto: MagicMock,
+) -> None:
+    """`GET /languages` with the right token renders links carrying the token forward."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        response = client.get("/languages?room=1&token=listen3r")
+    assert response.status_code == HTTPStatus.OK
+    assert "?room=1&lang=en-US&token=listen3r" in response.text
+
+
+@patch("app.voices.boto3.client")
 def test_rooms_html_lists_active_rooms(mock_boto: MagicMock) -> None:
-    """`GET /rooms` returns HTML listing active rooms as anchors."""
+    """`GET /rooms` returns HTML listing active rooms as links to /languages."""
     mock_boto.return_value.describe_voices.return_value = {
         "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
     }
@@ -72,8 +136,38 @@ def test_rooms_html_lists_active_rooms(mock_boto: MagicMock) -> None:
         main.registry.register_speaker("2", AsyncMock(), source_lang="it-IT")
         response = client.get("/rooms")
     assert response.status_code == HTTPStatus.OK
-    assert "?room=1&lang=en-US" in response.text
-    assert "?room=2&lang=en-US" in response.text
+    assert "/languages?room=1" in response.text
+    assert "/languages?room=2" in response.text
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_rooms_html_rejects_when_token_missing(mock_boto: MagicMock) -> None:
+    """`GET /rooms` returns 401 when LISTENER_TOKEN is set but token query is missing."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        response = client.get("/rooms")
+    assert response.status_code == HTTPStatus.UNAUTHORIZED
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_rooms_html_renders_links_with_token_when_authenticated(
+    mock_boto: MagicMock,
+) -> None:
+    """`GET /rooms` with the right token renders /languages links propagating it."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with TestClient(main.app) as client:
+        main.registry.register_speaker("1", AsyncMock(), source_lang="it-IT")
+        response = client.get("/rooms?token=listen3r")
+    assert response.status_code == HTTPStatus.OK
+    assert "/languages?room=1&token=listen3r" in response.text
 
 
 @patch("app.voices.boto3.client")
@@ -176,3 +270,98 @@ def test_ws_speak_conflict_per_room(mock_boto: MagicMock) -> None:
                 ws_b.receive_bytes()
             assert exc_info.value.code == 4409  # noqa: PLR2004
             ws_a.close()
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_ws_listen_rejects_when_token_missing(mock_boto: MagicMock) -> None:
+    """When LISTENER_TOKEN is set, `/ws/listen` without a token closes the connection."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/listen?room=1&lang=en-US") as ws,
+    ):
+        ws.receive_bytes()
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_ws_listen_rejects_when_token_mismatch(mock_boto: MagicMock) -> None:
+    """When LISTENER_TOKEN is set, `/ws/listen` with the wrong token closes the connection."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/listen?room=1&lang=en-US&token=wrong") as ws,
+    ):
+        ws.receive_bytes()
+
+
+@patch.dict("os.environ", {"LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_ws_listen_accepts_when_listener_token_matches(mock_boto: MagicMock) -> None:
+    """`/ws/listen` with the correct LISTENER_TOKEN connects normally."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        client.websocket_connect("/ws/listen?room=1&lang=en-US&token=listen3r") as ws,
+    ):
+        ws.close()
+
+
+@patch.dict("os.environ", {"SPEAKER_TOKEN": "sp3aker", "LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_ws_listen_rejects_when_using_speaker_token(mock_boto: MagicMock) -> None:
+    """The speaker token must NOT grant listener access (separate roles)."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/listen?room=1&lang=en-US&token=sp3aker") as ws,
+    ):
+        ws.receive_bytes()
+
+
+@patch.dict("os.environ", {"SPEAKER_TOKEN": "sp3aker"})
+@patch("app.voices.boto3.client")
+def test_ws_speak_rejects_when_token_mismatch(mock_boto: MagicMock) -> None:
+    """When SPEAKER_TOKEN is set, `/ws/speak` with the wrong token closes the connection."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/speak?room=1&lang=it-IT&token=wrong") as ws,
+    ):
+        ws.receive_bytes()
+
+
+@patch.dict("os.environ", {"SPEAKER_TOKEN": "sp3aker", "LISTENER_TOKEN": "listen3r"})
+@patch("app.voices.boto3.client")
+def test_ws_speak_rejects_when_using_listener_token(mock_boto: MagicMock) -> None:
+    """The listener token must NOT grant speaker access (separate roles)."""
+    mock_boto.return_value.describe_voices.return_value = {
+        "Voices": [{"Id": "X", "LanguageCode": "en-US", "SupportedEngines": ["generative"]}]
+    }
+    main = _make_app()
+    with (
+        TestClient(main.app) as client,
+        pytest.raises(WebSocketDisconnect),
+        client.websocket_connect("/ws/speak?room=1&lang=it-IT&token=listen3r") as ws,
+    ):
+        ws.receive_bytes()

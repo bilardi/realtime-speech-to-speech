@@ -2,6 +2,7 @@
 
 import argparse
 import asyncio
+import os
 
 import numpy as np
 import sounddevice as sd
@@ -28,6 +29,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--lang", type=str, default="it-IT", help="Language code (e.g. it-IT, en-US)"
     )
     parser.add_argument("--device", type=int, default=None, help="Audio device index")
+    parser.add_argument(
+        "--token",
+        type=str,
+        default=os.environ.get("SPEAKER_TOKEN"),
+        help="Auth token matching the server SPEAKER_TOKEN (or set SPEAKER_TOKEN env var)",
+    )
     return parser.parse_args(argv)
 
 
@@ -64,12 +71,13 @@ def resample(audio: np.ndarray, src_rate: int, dst_rate: int) -> np.ndarray:
     return np.interp(indices, np.arange(len(audio)), audio).astype(np.float32)
 
 
-async def stream_audio(
+async def stream_audio(  # noqa: PLR0913
     server: str,
     ws_path: str,
     room: str,
     lang: str,
     device: int | None,
+    token: str | None = None,
 ) -> None:
     """Capture audio from device and stream to server.
 
@@ -79,8 +87,11 @@ async def stream_audio(
         room: Room id.
         lang: BCP-47 language code.
         device: audio device index, or None for default.
+        token: optional auth token to append as ``&token=...`` query param.
     """
     url = f"{server.rstrip('/')}{ws_path}?room={room}&lang={lang}"
+    if token:
+        url += f"&token={token}"
     target_rate = 16000
     chunk_duration = 0.1
     device_info = sd.query_devices(device, "input")  # type: ignore[reportUnknownMemberType]
@@ -135,4 +146,6 @@ def main() -> None:
         print(sd.query_devices())  # type: ignore[reportUnknownMemberType]  # noqa: T201
         return
 
-    asyncio.run(stream_audio(args.server, args.ws_path, args.room, args.lang, args.device))
+    asyncio.run(
+        stream_audio(args.server, args.ws_path, args.room, args.lang, args.device, args.token)
+    )

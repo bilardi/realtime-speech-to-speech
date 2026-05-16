@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+import secrets
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -18,7 +19,7 @@ from app.pipeline import Pipeline
 from app.rooms import RoomRegistry, SessionConflictError
 from app.timing import UtteranceTiming
 from app.transcribe import iter_finalized, open_stream
-from app.voices import supported_target_languages
+from app.voices import lang_display, supported_target_languages
 
 if TYPE_CHECKING:
     from collections.abc import AsyncGenerator
@@ -46,6 +47,25 @@ _SUPPORTED_TARGET_LANGS: set[str] = set()
 # ``?lang=...`` explicitly; these defaults cover the bare connect case.
 _DEFAULT_SOURCE_LANG = os.environ.get("SOURCE_LANG", "it-IT")
 _DEFAULT_TARGET_LANG = os.environ.get("TARGET_LANG", "en-US")
+
+# Optional shared secrets protecting the WebSocket endpoints, split by role:
+# ``SPEAKER_TOKEN`` gates ``/ws/speak`` (the AWS cost driver: Transcribe +
+# Translate + Polly fan-out), ``LISTENER_TOKEN`` gates ``/ws/listen`` (the
+# distribution path via QR codes). Either unset = that endpoint accepts any
+# token (local dev default). Roles are independent: the listener token must
+# NOT grant speaker access and vice versa.
+_SPEAKER_TOKEN = os.environ.get("SPEAKER_TOKEN") or None
+_LISTENER_TOKEN = os.environ.get("LISTENER_TOKEN") or None
+
+
+def _token_valid(expected: str | None, provided: str | None) -> bool:
+    """Return True if `provided` matches `expected`, or if `expected` is None."""
+    if expected is None:
+        return True
+    if provided is None:
+        return False
+    return secrets.compare_digest(expected, provided)
+
 
 # Strong references to the per-utterance fan-out tasks. Without this set, the
 # tasks become weakly referenced from the event loop only and are eligible
@@ -87,13 +107,51 @@ async def api_rooms() -> JSONResponse:
     return JSONResponse({"rooms": registry.list_rooms_with_speaker()})
 
 
-@app.get("/rooms")
-async def rooms_index() -> HTMLResponse:
-    """HTML thin-wrapper over /api/rooms: list active rooms as clickable anchors."""
-    rooms = registry.list_rooms_with_speaker()
-    items = "".join(f'<li><a href="/?room={r}&lang=en-US">room {r}</a></li>' for r in rooms)
+@app.get("/languages")
+async def languages_index(room: str = "1", token: str | None = None) -> HTMLResponse:
+    """HTML language picker: one entry point for the listener QR; user clicks the target lang.
+
+    When `LISTENER_TOKEN` is set, the same token is required as a query param and
+    propagated into the per-language links so the user lands authenticated on the
+    listener page.
+    """
+    if not _token_valid(_LISTENER_TOKEN, token):
+        return HTMLResponse("<h1>401 unauthorized</h1>", status_code=401)
+    langs = sorted(_SUPPORTED_TARGET_LANGS)
+    token_suffix = f"&token={token}" if token else ""
+    items = "".join(
+        f'<li><a href="/?room={room}&lang={lang}{token_suffix}">{lang_display(lang)}</a></li>'
+        for lang in langs
+    )
     body = (
         "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+        f"<title>pick listener language (room {room})</title>"
+        f"<h1>pick your language</h1>"
+        f"<p>room {room}</p>"
+        f"<ul>{items}</ul>"
+    )
+    return HTMLResponse(body)
+
+
+@app.get("/rooms")
+async def rooms_index(token: str | None = None) -> HTMLResponse:
+    """HTML thin-wrapper over /api/rooms: list active rooms as links to /languages.
+
+    When `LISTENER_TOKEN` is set, the same token is required as a query param
+    and propagated into the per-room /languages links so the audience can chain
+    rooms picker -> language picker without retyping the token.
+    """
+    if not _token_valid(_LISTENER_TOKEN, token):
+        return HTMLResponse("<h1>401 unauthorized</h1>", status_code=401)
+    rooms = registry.list_rooms_with_speaker()
+    token_suffix = f"&token={token}" if token else ""
+    items = "".join(
+        f'<li><a href="/languages?room={r}{token_suffix}">room {r}</a></li>' for r in rooms
+    )
+    body = (
+        "<!doctype html><meta charset='utf-8'>"
+        "<meta name='viewport' content='width=device-width, initial-scale=1'>"
         "<title>active rooms</title>"
         f"<h1>active rooms ({len(rooms)})</h1>"
         f"<ul>{items}</ul>"
@@ -189,8 +247,16 @@ async def _consume_transcripts(
 
 
 @app.websocket("/ws/speak")
-async def ws_speak(websocket: WebSocket, room: str = "1", lang: str = _DEFAULT_SOURCE_LANG) -> None:
+async def ws_speak(
+    websocket: WebSocket,
+    room: str = "1",
+    lang: str = _DEFAULT_SOURCE_LANG,
+    token: str | None = None,
+) -> None:
     """Receive PCM frames from a speaker, stream to Transcribe, fan-out per active target."""
+    if not _token_valid(_SPEAKER_TOKEN, token):
+        await websocket.close(code=4401, reason="unauthorized")
+        return
     await websocket.accept()
     try:
         registry.register_speaker(room, websocket, source_lang=lang)
@@ -223,9 +289,15 @@ async def ws_speak(websocket: WebSocket, room: str = "1", lang: str = _DEFAULT_S
 
 @app.websocket("/ws/listen")
 async def ws_listen(
-    websocket: WebSocket, room: str = "1", lang: str = _DEFAULT_TARGET_LANG
+    websocket: WebSocket,
+    room: str = "1",
+    lang: str = _DEFAULT_TARGET_LANG,
+    token: str | None = None,
 ) -> None:
     """Receive translated text (JSON) and audio chunks (binary) from the fan-out."""
+    if not _token_valid(_LISTENER_TOKEN, token):
+        await websocket.close(code=4401, reason="unauthorized")
+        return
     if lang not in _SUPPORTED_TARGET_LANGS:
         await websocket.close(code=4400, reason="lang not supported")
         return

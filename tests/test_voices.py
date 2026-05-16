@@ -2,7 +2,20 @@
 
 from unittest.mock import MagicMock, patch
 
-from app.voices import list_voices, voice_for
+from app.voices import lang_display, list_voices, voice_for
+
+
+def test_lang_display_returns_human_readable_name_for_known_code() -> None:
+    """`lang_display` maps a known BCP-47 code to a human-readable name."""
+    assert lang_display("en-US") == "English (US)"
+    assert lang_display("de-DE") == "German (Germany)"
+    assert lang_display("it-IT") == "Italian"
+
+
+def test_lang_display_falls_back_to_raw_code_when_unknown() -> None:
+    """`lang_display` returns the raw code unchanged when the code is not in the mapping."""
+    assert lang_display("xx-XX") == "xx-XX"
+    assert lang_display("") == ""
 
 
 @patch("app.voices.boto3.client")

@@ -77,6 +77,68 @@ def voice_for(language_code: str) -> str | None:
     return voices[0].get("Id") if voices else None
 
 
+# BCP-47 code -> human-readable display name. Used by the picker page to render
+# clickable links labelled "English (US)" instead of "en-US". Falls back to the
+# raw code when an unmapped language code is encountered (so a Polly addition
+# does not break the picker; the user just sees the code until the dict catches
+# up).
+_LANG_DISPLAY: dict[str, str] = {
+    "ar-AE": "Arabic (UAE)",
+    "ca-ES": "Catalan",
+    "cmn-CN": "Chinese (Mandarin)",
+    "cs-CZ": "Czech",
+    "cy-GB": "Welsh",
+    "da-DK": "Danish",
+    "de-AT": "German (Austria)",
+    "de-CH": "German (Switzerland)",
+    "de-DE": "German (Germany)",
+    "en-AU": "English (Australia)",
+    "en-GB": "English (UK)",
+    "en-IE": "English (Ireland)",
+    "en-IN": "English (India)",
+    "en-NZ": "English (New Zealand)",
+    "en-SG": "English (Singapore)",
+    "en-US": "English (US)",
+    "en-ZA": "English (South Africa)",
+    "es-ES": "Spanish (Spain)",
+    "es-MX": "Spanish (Mexico)",
+    "es-US": "Spanish (US)",
+    "fi-FI": "Finnish",
+    "fr-BE": "French (Belgium)",
+    "fr-CA": "French (Canada)",
+    "fr-FR": "French (France)",
+    "hi-IN": "Hindi",
+    "is-IS": "Icelandic",
+    "it-IT": "Italian",
+    "ja-JP": "Japanese",
+    "ko-KR": "Korean",
+    "nb-NO": "Norwegian (Bokmal)",
+    "nl-BE": "Dutch (Belgium)",
+    "nl-NL": "Dutch",
+    "pl-PL": "Polish",
+    "pt-BR": "Portuguese (Brazil)",
+    "pt-PT": "Portuguese (Portugal)",
+    "ro-RO": "Romanian",
+    "ru-RU": "Russian",
+    "sv-SE": "Swedish",
+    "tr-TR": "Turkish",
+    "yue-CN": "Chinese (Cantonese)",
+}
+
+
+def lang_display(code: str) -> str:
+    """Return the human-readable display name for a BCP-47 code, or the code itself.
+
+    Args:
+        code: BCP-47 code, e.g. ``"en-US"``.
+
+    Returns:
+        Human-readable name (e.g. ``"English (US)"``); when the code is not in
+        the internal mapping, the raw code is returned unchanged.
+    """
+    return _LANG_DISPLAY.get(code, code)
+
+
 def supported_target_languages() -> set[str]:
     """Return the set of BCP-47 codes that have at least one generative voice.
 
