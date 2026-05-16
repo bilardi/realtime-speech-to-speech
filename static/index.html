@@ -5,48 +5,126 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Speech-to-Speech</title>
   <style>
+    html, body {
+      height: 100%;
+    }
     body {
+      --bg: #000;
+      --fg: #fff;
+      --btn-bg: #333;
+      --btn-fg: #fff;
+      --btn-border: #666;
+      --btn-hover: #555;
+      --zoom: 1;
       margin: 0;
-      background: #000;
-      color: #fff;
+      background: var(--bg);
+      color: var(--fg);
       font-family: system-ui, sans-serif;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 1rem;
+      padding: 3rem 1rem 1rem 1rem;
+      box-sizing: border-box;
+    }
+    body.theme-solarized-dark {
+      --bg: #002b36;
+      --fg: #839496;
+      --btn-bg: #073642;
+      --btn-fg: #93a1a1;
+      --btn-border: #586e75;
+      --btn-hover: #586e75;
+    }
+    body.theme-solarized-light {
+      --bg: #fdf6e3;
+      --fg: #657b83;
+      --btn-bg: #eee8d5;
+      --btn-fg: #586e75;
+      --btn-border: #93a1a1;
+      --btn-hover: #93a1a1;
+    }
+    body.theme-warm {
+      --bg: #282828;
+      --fg: #d79921;
+      --btn-bg: #3c3836;
+      --btn-fg: #d79921;
+      --btn-border: #665c54;
+      --btn-hover: #504945;
     }
     #status {
       position: fixed;
       top: 0.5rem;
-      right: 0.5rem;
+      left: 0.5rem;
       font-size: 0.8rem;
       opacity: 0.6;
     }
-    #transcript {
-      font-size: 2rem;
-      max-width: 90%;
-      text-align: center;
-      line-height: 1.4;
+    #controls-top {
+      position: fixed;
+      top: 0.5rem;
+      right: 0.5rem;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 0.25rem;
+      align-items: center;
     }
-    .error { color: #888; font-style: italic; }
-    #enable-audio {
+    .control-btn {
+      font-size: 0.9rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--btn-bg);
+      color: var(--btn-fg);
+      border: 1px solid var(--btn-border);
+      border-radius: 0.5rem;
+      cursor: pointer;
+      min-width: 2.5rem;
+    }
+    .control-btn:hover { background: var(--btn-hover); }
+    #enable-service {
       font-size: 1.5rem;
       padding: 1rem 2rem;
-      background: #fff;
-      color: #000;
+      background: var(--fg);
+      color: var(--bg);
       border: none;
       border-radius: 0.5rem;
       cursor: pointer;
+      margin-bottom: 1rem;
     }
-    #enable-audio:hover { background: #ddd; }
+    #transcript {
+      width: 90%;
+      max-width: 60rem;
+      flex: 1;
+      overflow-y: auto;
+      font-size: calc(1.5rem * var(--zoom));
+      text-align: center;
+      line-height: 1.4;
+    }
+    .transcript-line {
+      margin: 0.5rem 0;
+      padding: 0.25rem 0;
+    }
+    .transcript-line:last-child {
+      font-size: calc(2rem * var(--zoom));
+      font-weight: 600;
+    }
+    .transcript-line.error { opacity: 0.6; font-style: italic; }
+    .transcript-line.placeholder { opacity: 0.6; font-style: italic; }
   </style>
 </head>
 <body>
   <div id="status">connecting...</div>
-  <button id="enable-audio">enable audio</button>
-  <div id="transcript">waiting for speaker</div>
+  <div id="controls-top">
+    <button class="control-btn" id="save">save</button>
+    <button class="control-btn" id="reset">reset</button>
+    <button class="control-btn" id="theme-dark">dark</button>
+    <button class="control-btn" id="theme-warm">warm</button>
+    <button class="control-btn" id="theme-light">light</button>
+    <button class="control-btn" id="zoom-out">&minus;</button>
+    <button class="control-btn" id="zoom-in">+</button>
+    <button class="control-btn" id="mute-toggle">unmute</button>
+  </div>
+  <button id="enable-service">enable service</button>
+  <div id="transcript">
+    <div class="transcript-line placeholder">waiting for speaker</div>
+  </div>
   <script src="/static/app.js"></script>
 </body>
 </html>
