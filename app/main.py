@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import secrets
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -159,6 +159,29 @@ async def rooms_index(token: str | None = None) -> HTMLResponse:
     return HTMLResponse(body)
 
 
+_SAFE_CLOSE_TIMEOUT_S = 2.0
+
+
+async def _safe_close(websocket: WebSocket, *, code: int, reason: str) -> None:
+    """Close `websocket` with a short timeout, swallowing failures.
+
+    Used in error and cleanup paths where the underlying TCP may already be
+    unresponsive (network drop, peer gone). A plain ``await websocket.close``
+    would block on the close handshake indefinitely in that case, preventing
+    the surrounding ``finally`` from running (e.g., the speaker slot would
+    never be released). The timeout bounds that scenario; on timeout or any
+    other close error, we drop the close gracefully because the connection
+    is already broken from the caller's perspective.
+    """
+    # Intentional swallow: any close error (timeout, broken pipe, already-closed)
+    # is acceptable because the connection is already broken from the caller's
+    # perspective; surface here would just mask the real upstream cause.
+    with suppress(Exception):
+        await asyncio.wait_for(
+            websocket.close(code=code, reason=reason), timeout=_SAFE_CLOSE_TIMEOUT_S
+        )
+
+
 async def _feed_audio(
     websocket: WebSocket,
     stream: StartStreamTranscriptionEventStream,
@@ -271,18 +294,26 @@ async def ws_speak(
         stream = await open_stream(language_code=lang)
     except Exception as exc:  # noqa: BLE001
         logger.warning(f"transcribe open failed for room={room} lang={lang}: {exc}")
-        await websocket.close(code=4400, reason="transcribe_open_failed")
+        await _safe_close(websocket, code=4400, reason="transcribe_open_failed")
         registry.unregister_speaker(room, websocket)
         return
 
+    # Run feed/consume as explicit tasks so we can cancel them proactively if
+    # either fails: asyncio.gather() does not cancel siblings by itself, so a
+    # coroutine stuck on websocket.receive_bytes() across a network drop would
+    # otherwise survive past this scope and leak the speaker slot.
+    feed_task = asyncio.create_task(_feed_audio(websocket, stream))
+    consume_task = asyncio.create_task(
+        _consume_transcripts(stream, room=room, source_short=source_short, timing=timing)
+    )
     try:
-        await asyncio.gather(
-            _feed_audio(websocket, stream),
-            _consume_transcripts(stream, room=room, source_short=source_short, timing=timing),
-        )
+        await asyncio.gather(feed_task, consume_task)
     except Exception as exc:  # noqa: BLE001
         logger.error(f"speak ws error: {exc}")
-        await websocket.close(code=4500, reason="transcribe_lost")
+        feed_task.cancel()
+        consume_task.cancel()
+        await asyncio.gather(feed_task, consume_task, return_exceptions=True)
+        await _safe_close(websocket, code=4500, reason="transcribe_lost")
     finally:
         registry.unregister_speaker(room, websocket)
 
