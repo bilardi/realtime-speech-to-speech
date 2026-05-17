@@ -31,11 +31,13 @@ serve:
 	uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 .PHONY: client # run audio client
-DEVICE ?= default
+DEVICE ?= 20
 SOURCE_LANG ?= it-IT
 ROOM ?= 1
+SERVER ?= ws://localhost:8000
+export SPEAKER_TOKEN
 client:
-	uv run python -m audio_client --server ws://localhost:8000 --lang $(SOURCE_LANG) --room $(ROOM) --device "$(DEVICE)"
+	uv run python -m audio_client --server $(SERVER) --lang $(SOURCE_LANG) --room $(ROOM) --device "$(DEVICE)"
 
 .PHONY: major minor patch # bump version, regenerate CHANGELOG, push
 major:

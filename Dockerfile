@@ -7,11 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /code
 
 COPY pyproject.toml .
+
 RUN pip install --no-cache-dir .
 
 COPY app/ app/
 COPY static/ static/
-COPY audio_client/ audio_client/
 
 ENV PYTHONUNBUFFERED=1
 

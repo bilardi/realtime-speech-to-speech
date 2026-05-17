@@ -1,0 +1,103 @@
+<mxfile host="app.diagrams.net">
+  <diagram id="arch_post" name="Architecture (post)">
+    <mxGraphModel grid="1" page="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" pageScale="1" pageWidth="1500" pageHeight="780" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="e_audio_alb" edge="1" parent="1" source="audio_client" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;" target="alb" value="WS audio /ws/speak&#xa;PCM 16k mono">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_alb_browser_es" edge="1" parent="1" source="alb" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;" target="browser_es" value="WS /ws/listen&#xa;lang=es-ES&#xa;text+audio">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_alb_browser_en" edge="1" parent="1" source="alb" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;" target="browser_en" value="WS /ws/listen&#xa;lang=en-US&#xa;text+audio">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="aws" parent="1" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=14;fontStyle=1;container=0;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_aws_cloud;strokeColor=#232F3E;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#232F3E;dashed=0;" value="AWS" vertex="1">
+          <mxGeometry height="430" width="670" x="540" y="30" as="geometry" />
+        </mxCell>
+        <mxCell id="vpc" parent="1" style="points=[[0,0],[0.25,0],[0.5,0],[0.75,0],[1,0],[1,0.25],[1,0.5],[1,0.75],[1,1],[0.75,1],[0.5,1],[0.25,1],[0,1],[0,0.75],[0,0.5],[0,0.25]];outlineConnect=0;gradientColor=none;html=1;whiteSpace=wrap;fontSize=12;fontStyle=0;container=1;pointerEvents=0;collapsible=0;recursiveResize=0;shape=mxgraph.aws4.group;grIcon=mxgraph.aws4.group_vpc;strokeColor=#8C4FFF;fillColor=none;verticalAlign=top;align=left;spacingLeft=30;fontColor=#AAB7B8;dashed=0" value="VPC" vertex="1">
+          <mxGeometry height="160" width="270" x="700" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="alb" parent="vpc" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#8C4FFF;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.application_load_balancer" value="&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212));&quot;&gt;ALB&lt;br&gt;:443 / :80&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="60" x="30" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ec2" parent="vpc" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#ED7100;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.ec2" value="EC2&#xa;Docker Compose&#xa;FastAPI Server" vertex="1">
+          <mxGeometry height="60" width="60" x="180" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="e_alb_ec2" edge="1" parent="vpc" source="alb" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#232F3E;startArrow=classic;startFill=1;" target="ec2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r53" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#8C4FFF;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.route_53" value="Route 53&#xa;subdomain.domain.net" vertex="1">
+          <mxGeometry height="60" width="60" x="580" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="acm" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#DD344C;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.certificate_manager_3" value="ACM&#xa;*.domain.net" vertex="1">
+          <mxGeometry height="60" width="60" x="830" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ssm" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#DD344C;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.identity_and_access_management" value="SSM&#xa;access" vertex="1">
+          <mxGeometry height="60" width="60" x="950" y="50" as="geometry" />
+        </mxCell>
+        <mxCell id="transcribe" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#01A88D;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.transcribe;" value="Amazon Transcribe&#xa;Streaming" vertex="1">
+          <mxGeometry height="60" width="60" x="1110" y="100" as="geometry" />
+        </mxCell>
+        <mxCell id="translate" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#01A88D;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.translate;" value="Amazon Translate" vertex="1">
+          <mxGeometry height="60" width="60" x="1110" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="polly" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#01A88D;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.polly;" value="Amazon Polly&#xa;bidirectional streaming" vertex="1">
+          <mxGeometry height="60" width="60" x="1110" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="s3" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#3F8624;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.s3" value="S3&#xa;backup/restore" vertex="1">
+          <mxGeometry height="60" width="60" x="1010" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="mic" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;fontStyle=0;verticalAlign=middle;align=center;" value="Microphone&#xa;Mixer" vertex="1">
+          <mxGeometry height="50" width="80" x="430" y="529" as="geometry" />
+        </mxCell>
+        <mxCell id="audio_client" parent="1" style="outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=none;fillColor=#232F3E;labelPosition=center;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=11;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.client;" value="Audio PC&#xa;audio_client" vertex="1">
+          <mxGeometry height="60" width="60" x="600" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="browser_en" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#232F3E;fillColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.mobile_client;" value="Browser&#xa;lang=en-US" vertex="1">
+          <mxGeometry height="60" width="60" x="750" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="browser_es" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#232F3E;fillColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.mobile_client;" value="Browser&#xa;lang=es-ES" vertex="1">
+          <mxGeometry height="60" width="60" x="890" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="browser_fr" parent="1" style="sketch=0;outlineConnect=0;fontColor=#232F3E;gradientColor=none;strokeColor=#232F3E;fillColor=#ffffff;dashed=0;verticalLabelPosition=bottom;verticalAlign=top;align=center;html=1;fontSize=12;fontStyle=0;aspect=fixed;shape=mxgraph.aws4.resourceIcon;resIcon=mxgraph.aws4.mobile_client;" value="Browser&#xa;lang=fr-FR" vertex="1">
+          <mxGeometry height="60" width="60" x="1030" y="524" as="geometry" />
+        </mxCell>
+        <mxCell id="e_mic_audio" edge="1" parent="1" source="mic" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;" target="audio_client" value="audio device">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_alb_browser_fr" edge="1" parent="1" source="alb" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;" target="browser_fr" value="WS /ws/listen&#xa;lang=fr-FR&#xa;text+audio">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_r53_alb" edge="1" parent="1" source="r53" style="edgeStyle=orthogonalEdgeStyle;strokeColor=#232F3E;startArrow=classic;startFill=1;" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_acm_alb" edge="1" parent="1" source="acm" style="strokeColor=#232F3E;" target="alb">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ssm_ec2" edge="1" parent="1" source="ssm" style="strokeColor=#232F3E;dashed=1;" target="ec2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ec2_s3" edge="1" parent="1" source="ec2" style="strokeColor=#232F3E;startArrow=classic;endArrow=classic;" target="s3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ec2_transcribe" edge="1" parent="1" source="ec2" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;startArrow=classic;endArrow=classic;" target="transcribe" value="Transcribe API&#xa;PCM in, transcript out">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ec2_translate" edge="1" parent="1" source="ec2" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;startArrow=classic;endArrow=classic;" target="translate" value="translate_text&#xa;per target lang">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e_ec2_polly" edge="1" parent="1" source="ec2" style="strokeColor=#232F3E;fontSize=9;fontColor=#232F3E;labelBackgroundColor=#FFFFFF;startArrow=classic;endArrow=classic;" target="polly" value="StartSpeechSynthesisStream&#xa;via amazon-polly-streaming">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="computers" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#232F3E;dashed=1;verticalAlign=top;align=center;spacingLeft=10;fontSize=14;fontStyle=1;fontColor=#232F3E;container=0;collapsible=0;recursiveResize=0;" value="Speaker" vertex="1">
+          <mxGeometry height="160" width="270" x="410" y="479" as="geometry" />
+        </mxCell>
+        <mxCell id="Xeqez1gsJJLwUcgxSk14-1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#232F3E;dashed=1;verticalAlign=top;align=center;spacingLeft=10;fontSize=14;fontStyle=1;fontColor=#232F3E;container=0;collapsible=0;recursiveResize=0;" value="&lt;span style=&quot;background-color: light-dark(#ffffff, var(--ge-dark-color, #121212));&quot;&gt;Listeners&lt;/span&gt;" vertex="1">
+          <mxGeometry height="160" width="370" x="730" y="479" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

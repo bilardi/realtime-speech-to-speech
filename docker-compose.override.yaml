@@ -1,0 +1,6 @@
+services:
+  server:
+    environment:
+      - AWS_PROFILE=${AWS_PROFILE:-default}
+    volumes:
+      - ${LOCAL_HOME}/.aws:/root/.aws:ro
