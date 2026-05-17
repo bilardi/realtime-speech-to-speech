@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 import pytest
+from amazon_polly_streaming import PollyStreamingClient, ServiceException
 
 from app.polly import PollyError, synthesize_stream
 
@@ -23,15 +24,25 @@ def _async_iter(chunks: list[bytes]) -> AsyncIterator[bytes]:
     return gen()
 
 
+@pytest.fixture(autouse=True)
+def _clear_polly_client_cache() -> None:
+    """Reset `_get_client()` cache before each test (region env may vary per test)."""
+    from app.polly import _get_client  # noqa: PLC0415
+
+    _get_client.cache_clear()
+
+
 @pytest.mark.asyncio
 async def test_synthesize_stream_passes_through_polly_chunks() -> None:
-    """Each `AudioEvent` chunk emitted by polly-streaming is yielded as-is."""
+    """Each `AudioEvent` chunk emitted by amazon-polly-streaming is yielded as-is."""
     polly_chunks = [b"alpha", b"beta", b"gamma"]
 
     def fake_synth(**_: object) -> AsyncIterator[bytes]:
         return _async_iter(polly_chunks)
 
-    with patch("app.polly._synthesize_stream", side_effect=fake_synth):
+    with patch.object(
+        PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth
+    ):
         received = [chunk async for chunk in synthesize_stream(text="hi", voice_id="Matthew")]
 
     assert received == polly_chunks
@@ -39,7 +50,7 @@ async def test_synthesize_stream_passes_through_polly_chunks() -> None:
 
 @pytest.mark.asyncio
 async def test_synthesize_stream_forwards_voice_and_format_parameters() -> None:
-    """Voice id, engine, output format, sample rate, region, and language flow through."""
+    """Voice id, engine, output format, sample rate, and language flow through to the method."""
     captured: dict[str, object] = {}
 
     def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
@@ -49,7 +60,7 @@ async def test_synthesize_stream_forwards_voice_and_format_parameters() -> None:
     env = {"AWS_REGION": "us-west-2", "POLLY_LANGUAGE_CODE": "en-US"}
     with (
         patch.dict("os.environ", env, clear=False),
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
     ):
         async for _ in synthesize_stream(
             text="ciao",
@@ -65,22 +76,30 @@ async def test_synthesize_stream_forwards_voice_and_format_parameters() -> None:
     assert captured["engine"] == "generative"
     assert captured["output_format"] == "pcm"
     assert captured["sample_rate"] == "16000"
-    assert captured["region"] == "us-west-2"
     assert captured["language_code"] == "en-US"
 
 
+def test_get_client_uses_aws_region_from_env() -> None:
+    """The cached client is constructed with the AWS_REGION env value."""
+    from app.polly import _get_client  # noqa: PLC0415
+
+    with patch.dict("os.environ", {"AWS_REGION": "ap-southeast-1"}, clear=False):
+        client = _get_client()
+
+    assert client.region == "ap-southeast-1"
+
+
 @pytest.mark.asyncio
-async def test_synthesize_stream_maps_polly_stream_error_to_polly_error() -> None:
-    """`PollyStreamError` from the library surfaces as `PollyError` to callers."""
-    from polly_streaming import PollyStreamError  # noqa: PLC0415
+async def test_synthesize_stream_maps_service_exception_to_polly_error() -> None:
+    """`ServiceException` from the library surfaces as `PollyError` to callers."""
 
     async def fake_synth(**_: object) -> AsyncIterator[bytes]:
         msg = "framed exception from Polly"
-        raise PollyStreamError(msg)
+        raise ServiceException(msg)
         yield  # pragma: no cover - unreachable, keeps function an async generator
 
     with (
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
         pytest.raises(PollyError, match="framed exception"),
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
@@ -97,7 +116,7 @@ async def test_synthesize_stream_maps_transport_runtime_error_to_polly_error() -
         yield  # pragma: no cover - unreachable, keeps function an async generator
 
     with (
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
         pytest.raises(PollyError, match="connection refused"),
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
@@ -115,9 +134,8 @@ async def test_synthesize_stream_default_use_pool_is_true_when_env_unset() -> No
 
     with (
         patch.dict("os.environ", {}, clear=False),
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
     ):
-        # Make sure POLLY_USE_POOL is genuinely unset for this test
         import os  # noqa: PLC0415
 
         os.environ.pop("POLLY_USE_POOL", None)
@@ -129,7 +147,7 @@ async def test_synthesize_stream_default_use_pool_is_true_when_env_unset() -> No
 
 @pytest.mark.asyncio
 async def test_synthesize_stream_use_pool_false_when_env_disables_pool() -> None:
-    """`POLLY_USE_POOL=false` propagates `use_pool=False` to polly-streaming."""
+    """`POLLY_USE_POOL=false` propagates `use_pool=False` to amazon-polly-streaming."""
     captured: dict[str, object] = {}
 
     def fake_synth(**kwargs: object) -> AsyncIterator[bytes]:
@@ -138,7 +156,7 @@ async def test_synthesize_stream_use_pool_false_when_env_disables_pool() -> None
 
     with (
         patch.dict("os.environ", {"POLLY_USE_POOL": "false"}, clear=False),
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
             pass
@@ -157,7 +175,7 @@ async def test_synthesize_stream_use_pool_true_when_env_explicitly_enables_pool(
 
     with (
         patch.dict("os.environ", {"POLLY_USE_POOL": "true"}, clear=False),
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
             pass
@@ -176,7 +194,7 @@ async def test_synthesize_stream_use_pool_env_parse_is_case_insensitive() -> Non
 
     with (
         patch.dict("os.environ", {"POLLY_USE_POOL": "FALSE"}, clear=False),
-        patch("app.polly._synthesize_stream", side_effect=fake_synth),
+        patch.object(PollyStreamingClient, "start_speech_synthesis_stream", side_effect=fake_synth),
     ):
         async for _ in synthesize_stream(text="x", voice_id="Matthew"):
             pass

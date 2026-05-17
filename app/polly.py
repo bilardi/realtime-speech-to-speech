@@ -1,19 +1,19 @@
 """Amazon Polly synthesis wrapper.
 
-Delegates to the `polly-streaming` package, which talks to Polly's HTTP/2
-bidirectional streaming endpoint (`StartSpeechSynthesisStream`) via SigV4
-plus rolling chunk-signature. Exposes an async-iterator interface so
+Delegates to the `amazon-polly-streaming` package, which talks to Polly's
+HTTP/2 bidirectional streaming endpoint (`StartSpeechSynthesisStream`) via
+SigV4 plus rolling chunk-signature. Exposes an async-iterator interface so
 `app.pipeline` can yield audio bytes as they arrive from Polly.
 """
 
 from __future__ import annotations
 
 import os
+from functools import cache
 from typing import TYPE_CHECKING
 
+from amazon_polly_streaming import PollyStreamingClient, ServiceException
 from loguru import logger
-from polly_streaming import PollyStreamError
-from polly_streaming import synthesize_stream as _synthesize_stream
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -32,13 +32,24 @@ def _parse_use_pool() -> bool:
     Returns:
         ``False`` when the variable is set to ``"false"``, ``"0"``, or
         ``"no"`` (case-insensitive). ``True`` when unset or set to anything
-        else. Default ``True`` matches the polly-streaming library default
-        and the production target (pool reduces TLS / HTTP/2 setup cost).
+        else. Default ``True`` matches the amazon-polly-streaming library
+        default and the production target (pool reduces TLS / HTTP/2 setup cost).
     """
     raw = os.environ.get("POLLY_USE_POOL")
     if raw is None:
         return True
     return raw.strip().lower() not in _USE_POOL_FALSY
+
+
+@cache
+def _get_client() -> PollyStreamingClient:
+    """Return a cached ``PollyStreamingClient`` bound to the configured region.
+
+    Module-level cache mirrors the boto3 client caching pattern used elsewhere
+    in this package (see ``app.transcribe``, ``app.translate``). Region is read
+    once from ``AWS_REGION``; changes at runtime require a process restart.
+    """
+    return PollyStreamingClient(region=os.environ.get("AWS_REGION", "us-west-2"))
 
 
 async def synthesize_stream(
@@ -52,7 +63,7 @@ async def synthesize_stream(
     """Synthesize text and yield audio bytes as Polly emits them.
 
     Reads ``POLLY_USE_POOL`` from the environment to enable or disable the
-    polly-streaming HTTP/2 connection pool per call. Default ``True``;
+    amazon-polly-streaming HTTP/2 connection pool per call. Default ``True``;
     ``"false"``, ``"0"``, or ``"no"`` disable it (case-insensitive). Useful
     for A/B latency comparisons against the no-pool baseline at the same
     code path.
@@ -77,10 +88,9 @@ async def synthesize_stream(
             exception, missing credentials).
     """
     try:
-        async for chunk in _synthesize_stream(
+        async for chunk in _get_client().start_speech_synthesis_stream(
             text=text,
             voice_id=voice_id,
-            region=os.environ.get("AWS_REGION", "us-west-2"),
             engine=engine,
             language_code=os.environ.get("POLLY_LANGUAGE_CODE", "en-US"),
             output_format=output_format,
@@ -88,7 +98,7 @@ async def synthesize_stream(
             use_pool=_parse_use_pool(),
         ):
             yield chunk
-    except PollyStreamError as exc:
+    except ServiceException as exc:
         logger.warning("Polly bidirectional streaming returned an error event: {}", exc)
         raise PollyError(str(exc)) from exc
     except RuntimeError as exc:
