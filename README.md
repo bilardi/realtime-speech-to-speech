@@ -1,4 +1,4 @@
-# Speech-to-Speech
+# Realtime Speech-to-Speech
 
 Real-time speech translation POC built on Amazon Transcribe Streaming, Amazon Translate, and Amazon Polly bidirectional streaming (via [amazon-polly-streaming](https://amazon-polly-streaming.readthedocs.io/en/latest/)). Single speaker (PC) plus N listeners on LAN, each in its own target language, monodirectional.
 
@@ -184,6 +184,10 @@ The recording must contain the italian utterance on the first half and the engli
 
 Hosted deploy through the [aws-docker-host](https://github.com/bilardi/aws-docker-host) terraform repo (sibling repo to this one). Only the base `docker-compose.yaml` is shipped: `docker-compose.override.yaml` stays in this repo for local dev (it mounts `~/.aws` and sets `AWS_PROFILE`, both unwanted on EC2 where credentials come from the IAM role).
 
+The deploy wraps the application pipeline with the AWS infrastructure shown below: Route 53 for DNS, ACM for the TLS certificate, ALB in front of the EC2 container, SSM for shell access, S3 for state backup and restore.
+
+![Deploy topology](images/architecture.post.drawio.png)
+
 Run the steps below from this repo root. They assume `aws-docker-host` is a sibling directory (`../aws-docker-host`).
 
 ```sh
@@ -216,7 +220,7 @@ terraform output nameservers  # configure these on your domain registrar
 qrencode -o "listen.png" "https://$HOST/languages?room=1&token=$LISTENER_TOKEN"
 
 # 5. (on the speaker PC) run audio_client with the speaker token
-cd ../../speech-to-speech
+cd ../../realtime-speech-to-speech
 export SPEAKER_TOKEN
 make client SERVER=wss://$HOST DEVICE=$DEVICE
 ```

@@ -1,4 +1,4 @@
-"""FastAPI server for speech-to-speech: WebSocket routes plus static plus REST helpers."""
+"""FastAPI server for realtime-speech-to-speech: WebSocket routes plus static plus REST helpers."""
 
 from __future__ import annotations
 
@@ -84,7 +84,7 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
     yield
 
 
-app = FastAPI(title="Speech-to-Speech", lifespan=lifespan)
+app = FastAPI(title="Realtime Speech-to-Speech", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 registry = RoomRegistry()
 

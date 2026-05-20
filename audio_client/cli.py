@@ -18,7 +18,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     Returns:
         Parsed arguments namespace.
     """
-    parser = argparse.ArgumentParser(description="Audio client for speech-to-speech")
+    parser = argparse.ArgumentParser(description="Audio client for realtime-speech-to-speech")
     parser.add_argument("--list-devices", action="store_true", help="List audio devices and exit")
     parser.add_argument(
         "--server", type=str, default="ws://localhost:8000", help="Server WebSocket URL"
