@@ -1,0 +1,14 @@
+sequenceDiagram
+    participant A as Task A
+    participant B as Task B
+    participant P as Pool 0.2.0
+    participant C as Connection
+
+    A->>P: acquire
+    P->>C: open (cold)
+    P-->>A: connection
+    A->>C: stream 1 active
+    B->>P: acquire
+    P-->>B: same connection
+    B->>C: stream 2 queued
+    Note over C: max 1 concurrent stream

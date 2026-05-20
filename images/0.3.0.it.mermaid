@@ -1,0 +1,15 @@
+sequenceDiagram
+    participant A as Task A
+    participant B as Task B
+    participant P as Pool 0.3.0
+    participant C1 as Conn 1
+    participant C2 as Conn 2
+
+    A->>P: prestito
+    P->>C1: open
+    P-->>A: conn 1
+    A->>C1: stream attivo
+    B->>P: prestito
+    P->>C2: open
+    P-->>B: conn 2 distinta
+    B->>C2: stream attivo
