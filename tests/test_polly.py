@@ -89,6 +89,20 @@ def test_get_client_uses_aws_region_from_env() -> None:
     assert client.region == "ap-southeast-1"
 
 
+def test_get_client_passes_awscrt_credentials_resolver_to_polly_client() -> None:
+    """Constructs the client with ``AwsCrtCredentialsResolver`` so AWS_PROFILE keeps working."""
+    from amazon_polly_streaming import AwsCrtCredentialsResolver  # noqa: PLC0415
+
+    from app.polly import _get_client  # noqa: PLC0415
+
+    with patch("app.polly.PollyStreamingClient") as mock_client:
+        _get_client()
+
+    mock_client.assert_called_once()
+    call_kwargs = mock_client.call_args.kwargs
+    assert isinstance(call_kwargs["credentials_resolver"], AwsCrtCredentialsResolver)
+
+
 @pytest.mark.asyncio
 async def test_synthesize_stream_maps_service_exception_to_polly_error() -> None:
     """`ServiceException` from the library surfaces as `PollyError` to callers."""

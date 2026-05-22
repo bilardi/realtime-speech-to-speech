@@ -12,7 +12,7 @@ import os
 from functools import cache
 from typing import TYPE_CHECKING
 
-from amazon_polly_streaming import PollyStreamingClient, ServiceException
+from amazon_polly_streaming import AwsCrtCredentialsResolver, PollyStreamingClient, ServiceException
 from loguru import logger
 
 if TYPE_CHECKING:
@@ -49,7 +49,10 @@ def _get_client() -> PollyStreamingClient:
     in this package (see ``app.transcribe``, ``app.translate``). Region is read
     once from ``AWS_REGION``; changes at runtime require a process restart.
     """
-    return PollyStreamingClient(region=os.environ.get("AWS_REGION", "us-west-2"))
+    return PollyStreamingClient(
+        region=os.environ.get("AWS_REGION", "us-west-2"),
+        credentials_resolver=AwsCrtCredentialsResolver(),
+    )
 
 
 async def synthesize_stream(
