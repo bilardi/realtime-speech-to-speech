@@ -4,15 +4,15 @@ requires-python = ">=3.13"
 
 [[package]]
 name = "amazon-polly-streaming"
-version = "1.0.0"
+version = "1.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "awscrt" },
     { name = "botocore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/60/e1/dadfec2c58f294a698415b4582dd313d5e9baa340251f1c16ec883e7ae53/amazon_polly_streaming-1.0.0.tar.gz", hash = "sha256:540b8bec24a05899231efe83bd02be412b1ce9035762f0a3c8ef1486a01bc3fa", size = 34564, upload-time = "2026-05-17T20:23:19.42Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7b/cd/f7678d91a19fa64473bd92533b8f632d58a62d689df7ef82647ab9afda66/amazon_polly_streaming-1.1.0.tar.gz", hash = "sha256:48640089be3090304eb114232d09c10e3eff106372c54a3e240357c288dadb2a", size = 34734, upload-time = "2026-05-22T16:57:40.616Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/44/1e/a604f8344174d204034a098b130c4adda4b27e1938131296f4fd3d001a3b/amazon_polly_streaming-1.0.0-py3-none-any.whl", hash = "sha256:96a65e5c3a68b33335e4c2c10a550f4132a2ac2017640813282d1c66bc57b8bf", size = 26765, upload-time = "2026-05-17T20:23:17.529Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/1f/a2479765b9062256f4053e32ad5418a345e214c9ab9e82c803ae45ac303d/amazon_polly_streaming-1.1.0-py3-none-any.whl", hash = "sha256:6fd41b0e2920398ed48c23bbf0307d781447aa90c88fae71e8c49f27b5c963ed", size = 26902, upload-time = "2026-05-22T16:57:39.105Z" },
 ]
 
 [[package]]
@@ -795,6 +795,63 @@ wheels = [
 ]
 
 [[package]]
+name = "realtime-speech-to-speech"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "amazon-polly-streaming" },
+    { name = "amazon-transcribe" },
+    { name = "boto3" },
+    { name = "fastapi" },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "python-dotenv" },
+    { name = "sounddevice" },
+    { name = "uvicorn", extra = ["standard"] },
+    { name = "websockets" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "boto3-stubs", extra = ["polly", "translate"] },
+    { name = "bump-my-version" },
+    { name = "git-cliff" },
+    { name = "httpx" },
+    { name = "pre-commit" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "amazon-polly-streaming", specifier = "==1.1.0" },
+    { name = "amazon-transcribe" },
+    { name = "boto3" },
+    { name = "fastapi" },
+    { name = "loguru" },
+    { name = "numpy" },
+    { name = "python-dotenv" },
+    { name = "sounddevice" },
+    { name = "uvicorn", extras = ["standard"] },
+    { name = "websockets" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "boto3-stubs", extras = ["polly", "translate"] },
+    { name = "bump-my-version" },
+    { name = "git-cliff" },
+    { name = "httpx" },
+    { name = "pre-commit" },
+    { name = "pyright" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[[package]]
 name = "rich"
 version = "15.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -881,63 +938,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/88/a1/d19dd9889cd4bce2e233c4fac007cd8daaf5b9fe6e6a5d432cf17be0b807/sounddevice-0.5.5-py3-none-win32.whl", hash = "sha256:1234cc9b4c9df97b6cbe748146ae0ec64dd7d6e44739e8e42eaa5b595313a103", size = 317765, upload-time = "2026-01-23T18:36:39.047Z" },
     { url = "https://files.pythonhosted.org/packages/c3/0e/002ed7c4c1c2ab69031f78989d3b789fee3a7fba9e586eb2b81688bf4961/sounddevice-0.5.5-py3-none-win_amd64.whl", hash = "sha256:cfc6b2c49fb7f555591c78cb8ecf48d6a637fd5b6e1db5fec6ed9365d64b3519", size = 365324, upload-time = "2026-01-23T18:36:40.496Z" },
     { url = "https://files.pythonhosted.org/packages/4e/39/a61d4b83a7746b70d23d9173be688c0c6bfc7173772344b7442c2c155497/sounddevice-0.5.5-py3-none-win_arm64.whl", hash = "sha256:3861901ddd8230d2e0e8ae62ac320cdd4c688d81df89da036dcb812f757bb3e6", size = 317115, upload-time = "2026-01-23T18:36:42.235Z" },
-]
-
-[[package]]
-name = "speech-to-speech"
-version = "0.1.0"
-source = { editable = "." }
-dependencies = [
-    { name = "amazon-polly-streaming" },
-    { name = "amazon-transcribe" },
-    { name = "boto3" },
-    { name = "fastapi" },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "python-dotenv" },
-    { name = "sounddevice" },
-    { name = "uvicorn", extra = ["standard"] },
-    { name = "websockets" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "boto3-stubs", extra = ["polly", "translate"] },
-    { name = "bump-my-version" },
-    { name = "git-cliff" },
-    { name = "httpx" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "amazon-polly-streaming", specifier = "==1.0.0" },
-    { name = "amazon-transcribe" },
-    { name = "boto3" },
-    { name = "fastapi" },
-    { name = "loguru" },
-    { name = "numpy" },
-    { name = "python-dotenv" },
-    { name = "sounddevice" },
-    { name = "uvicorn", extras = ["standard"] },
-    { name = "websockets" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "boto3-stubs", extras = ["polly", "translate"] },
-    { name = "bump-my-version" },
-    { name = "git-cliff" },
-    { name = "httpx" },
-    { name = "pre-commit" },
-    { name = "pyright" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "ruff" },
 ]
 
 [[package]]

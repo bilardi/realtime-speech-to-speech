@@ -15,7 +15,7 @@ dependencies = [
   "fastapi",
   "loguru",
   "numpy",
-  "amazon-polly-streaming==1.0.0",
+  "amazon-polly-streaming==1.1.0",
   "python-dotenv",
   "sounddevice",
   "uvicorn[standard]",
