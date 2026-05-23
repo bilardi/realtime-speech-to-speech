@@ -3,19 +3,22 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from aws_sdk_transcribe_streaming.models import TranscriptEvent
 
 from app.transcribe import iter_finalized
 
 
 def _make_event(text: str, *, is_partial: bool) -> MagicMock:
-    """Build a mock Transcribe event."""
+    """Build a mock event whose ``.value`` passes ``isinstance(_, TranscriptEvent)``."""
     alt = MagicMock()
     alt.transcript = text
     result = MagicMock()
     result.is_partial = is_partial
     result.alternatives = [alt]
+    transcript_event = MagicMock(spec=TranscriptEvent)
+    transcript_event.transcript.results = [result]
     event = MagicMock()
-    event.transcript.results = [result]
+    event.value = transcript_event
     return event
 
 

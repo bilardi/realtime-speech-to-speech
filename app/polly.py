@@ -1,19 +1,35 @@
+# pyright: reportUnknownMemberType=false, reportUnknownVariableType=false
+# pyright: reportUnknownArgumentType=false, reportUnknownParameterType=false
+# pyright: reportMissingTypeArgument=false, reportMissingImports=false
+# Rationale: aws-sdk-polly ships without `py.typed`, so pyright in strict
+# mode fails to resolve some submodules and treats the rest as partially
+# unknown; suppressions are scoped to this module.
 """Amazon Polly synthesis wrapper.
 
-Delegates to the `amazon-polly-streaming` package, which talks to Polly's
-HTTP/2 bidirectional streaming endpoint (`StartSpeechSynthesisStream`) via
-SigV4 plus rolling chunk-signature. Exposes an async-iterator interface so
-`app.pipeline` can yield audio bytes as they arrive from Polly.
+Delegates to ``aws-sdk-polly`` (awslabs smithy-based SDK). Exposes an
+async-iterator interface so ``app.pipeline`` can yield audio bytes as
+they arrive from Polly's HTTP/2 bidirectional streaming endpoint.
 """
 
 from __future__ import annotations
 
+import asyncio
 import os
 from functools import cache
 from typing import TYPE_CHECKING
 
-from amazon_polly_streaming import PollyStreamingClient, ServiceException
+from aws_sdk_polly.client import PollyClient
+from aws_sdk_polly.config import Config
+from aws_sdk_polly.models import (
+    CloseStreamEvent,
+    StartSpeechSynthesisStreamActionStreamCloseStreamEvent,
+    StartSpeechSynthesisStreamActionStreamTextEvent,
+    StartSpeechSynthesisStreamEventStreamAudioEvent,
+    StartSpeechSynthesisStreamInput,
+    TextEvent,
+)
 from loguru import logger
+from smithy_aws_core.identity import EnvironmentCredentialsResolver
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -23,33 +39,22 @@ class PollyError(RuntimeError):
     """Raised when Polly synthesis fails."""
 
 
-_USE_POOL_FALSY = frozenset({"false", "0", "no"})
-
-
-def _parse_use_pool() -> bool:
-    """Read the ``POLLY_USE_POOL`` env var.
-
-    Returns:
-        ``False`` when the variable is set to ``"false"``, ``"0"``, or
-        ``"no"`` (case-insensitive). ``True`` when unset or set to anything
-        else. Default ``True`` matches the amazon-polly-streaming library
-        default and the production target (pool reduces TLS / HTTP/2 setup cost).
-    """
-    raw = os.environ.get("POLLY_USE_POOL")
-    if raw is None:
-        return True
-    return raw.strip().lower() not in _USE_POOL_FALSY
-
-
 @cache
-def _get_client() -> PollyStreamingClient:
-    """Return a cached ``PollyStreamingClient`` bound to the configured region.
+def _get_client() -> PollyClient:
+    """Return a cached ``PollyClient`` bound to the configured region.
 
     Module-level cache mirrors the boto3 client caching pattern used elsewhere
-    in this package (see ``app.transcribe``, ``app.translate``). Region is read
+    in this package (see ``app.translate``, ``app.voices``). Region is read
     once from ``AWS_REGION``; changes at runtime require a process restart.
     """
-    return PollyStreamingClient(region=os.environ.get("AWS_REGION", "us-west-2"))
+    region = os.environ.get("AWS_REGION", "us-west-2")
+    return PollyClient(
+        config=Config(
+            endpoint_uri=f"https://polly.{region}.amazonaws.com",
+            region=region,
+            aws_credentials_identity_resolver=EnvironmentCredentialsResolver(),
+        )
+    )
 
 
 async def synthesize_stream(
@@ -61,12 +66,6 @@ async def synthesize_stream(
     sample_rate: str = "16000",
 ) -> AsyncIterator[bytes]:
     """Synthesize text and yield audio bytes as Polly emits them.
-
-    Reads ``POLLY_USE_POOL`` from the environment to enable or disable the
-    amazon-polly-streaming HTTP/2 connection pool per call. Default ``True``;
-    ``"false"``, ``"0"``, or ``"no"`` disable it (case-insensitive). Useful
-    for A/B latency comparisons against the no-pool baseline at the same
-    code path.
 
     Args:
         text: Input text to synthesize.
@@ -88,19 +87,50 @@ async def synthesize_stream(
             exception, missing credentials).
     """
     try:
-        async for chunk in _get_client().start_speech_synthesis_stream(
-            text=text,
-            voice_id=voice_id,
-            engine=engine,
-            language_code=os.environ.get("POLLY_LANGUAGE_CODE", "en-US"),
-            output_format=output_format,
-            sample_rate=sample_rate,
-            use_pool=_parse_use_pool(),
-        ):
-            yield chunk
-    except ServiceException as exc:
-        logger.warning("Polly bidirectional streaming returned an error event: {}", exc)
-        raise PollyError(str(exc)) from exc
-    except RuntimeError as exc:
-        logger.warning("Polly bidirectional streaming transport failure: {}", exc)
+        stream = await _get_client().start_speech_synthesis_stream(
+            input=StartSpeechSynthesisStreamInput(
+                engine=engine,
+                language_code=os.environ.get("POLLY_LANGUAGE_CODE", "en-US"),
+                output_format=output_format,
+                sample_rate=sample_rate,
+                voice_id=voice_id,
+            )
+        )
+        _, output_stream = await stream.await_output()
+        if output_stream is None:
+            msg = "Polly returned no output stream"
+            raise PollyError(msg)  # noqa: TRY301
+
+        async def _send_input() -> None:
+            """Send the text + close-stream event on the input channel."""
+            await stream.input_stream.send(
+                StartSpeechSynthesisStreamActionStreamTextEvent(value=TextEvent(text=text))
+            )
+            await stream.input_stream.send(
+                StartSpeechSynthesisStreamActionStreamCloseStreamEvent(CloseStreamEvent())
+            )
+            await stream.input_stream.close()
+
+        producer_task = asyncio.create_task(_send_input())
+        try:
+            async for event in output_stream:
+                if isinstance(event, StartSpeechSynthesisStreamEventStreamAudioEvent):
+                    chunk = event.value.audio_chunk
+                    if chunk:
+                        yield chunk
+        finally:
+            if not producer_task.done():
+                producer_task.cancel()
+            try:
+                await producer_task
+            except (asyncio.CancelledError, Exception) as exc:  # noqa: BLE001
+                # Producer cleanup errors are not propagated; the consumer
+                # iteration already either completed or raised the primary
+                # error. Log for diagnosis without masking the original cause.
+                logger.debug("Polly input-stream cleanup raised: {}", exc)
+
+    except PollyError:
+        raise
+    except Exception as exc:
+        logger.warning("Polly bidirectional streaming failed: {}", exc)
         raise PollyError(str(exc)) from exc
