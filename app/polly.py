@@ -30,6 +30,11 @@ from aws_sdk_polly.models import (
 )
 from loguru import logger
 from smithy_aws_core.identity import EnvironmentCredentialsResolver
+from smithy_http.aio.crt import (
+    AWSCRTHTTPClient,
+    AWSCRTHTTPClientConfig,
+    ConnectionPoolConfig,
+)
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
@@ -46,13 +51,27 @@ def _get_client() -> PollyClient:
     Module-level cache mirrors the boto3 client caching pattern used elsewhere
     in this package (see ``app.translate``, ``app.voices``). Region is read
     once from ``AWS_REGION``; changes at runtime require a process restart.
+
+    The transport is constructed with an explicit ``ConnectionPoolConfig`` so
+    that fan-out bidirectional synthesis (1 speaker -> N listener languages)
+    can run on multiple HTTP/2 connections concurrently. The pool lives on
+    the shared ``_AWSCRTEventLoop`` and survives the ``deepcopy`` that the
+    smithy operation pipeline performs on the config per request, which is
+    what makes warm reuse across operations possible (see the smithy-python
+    ``add-awscrt-connection-pool`` branch driving this).
     """
     region = os.environ.get("AWS_REGION", "us-west-2")
+    transport = AWSCRTHTTPClient(
+        client_config=AWSCRTHTTPClientConfig(
+            connection_pool=ConnectionPoolConfig(max_connections_per_host=8)
+        )
+    )
     return PollyClient(
         config=Config(
             endpoint_uri=f"https://polly.{region}.amazonaws.com",
             region=region,
             aws_credentials_identity_resolver=EnvironmentCredentialsResolver(),
+            transport=transport,
         )
     )
 
