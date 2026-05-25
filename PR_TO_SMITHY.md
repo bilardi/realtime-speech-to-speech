@@ -1,6 +1,6 @@
 # Connection pool for `AWSCRTHTTPClient` — supporting documentation
 
-This document is the technical and operational supplement to the issue on `smithy-lang/smithy-python` proposing an opt-in connection pool with lease semantics for `AWSCRTHTTPClient`. It provides:
+This document is the technical and operational supplement to issue [#701](https://github.com/smithy-lang/smithy-python/issues/701) on `smithy-lang/smithy-python` proposing an opt-in connection pool with lease semantics for `AWSCRTHTTPClient`. It provides:
 
 - The branches in the contributor's repositories referenced by the issue (for code review and reproducibility)
 - Setup commands to reproduce each empirical benchmark mentioned in the issue
