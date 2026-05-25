@@ -13,12 +13,12 @@ The issue body itself is intentionally concise. This document is where to look f
 
 | Repository | Branch | Role |
 |---|---|---|
-| [`bilardi/smithy-python`](https://github.com/bilardi/smithy-python/tree/add-awscrt-connection-pool) (fork of `smithy-lang/smithy-python`) | `add-awscrt-connection-pool` | Source code of the proposed PR. Single file modified: `packages/smithy-http/src/smithy_http/aio/crt.py` (+248/-24 lines) |
-| [`bilardi/amazon-polly-streaming`](https://github.com/bilardi/amazon-polly-streaming) | `feature/smithy-integration` | Reference hand-rolled implementation used in benchmark 1 (`smithy_aws_core[eventstream]` + lease pool over `awscrt`) |
-| [`bilardi/realtime-speech-to-speech`](https://github.com/bilardi/realtime-speech-to-speech) | `feature/smithy-polly` | Application code for benchmark 1 |
-| `bilardi/realtime-speech-to-speech` | `feature/aws-sdk-polly` | Application code for benchmark 2 (`aws-sdk-polly` vanilla) |
-| `bilardi/realtime-speech-to-speech` | `feature/add-awscrt-connection-pool` | Application code for benchmark 3 (`aws-sdk-polly` + proposed PR) |
-| `bilardi/realtime-speech-to-speech` | `master` | Application code for benchmark 4 (`amazon-polly-streaming` 1.1.0 from PyPI, pool without smithy stack) |
+| [`bilardi/smithy-python`](https://github.com/bilardi/smithy-python) (fork of `smithy-lang/smithy-python`) | [`add-awscrt-connection-pool`](https://github.com/bilardi/smithy-python/tree/add-awscrt-connection-pool) | Source code of the proposed PR. Single file modified: `packages/smithy-http/src/smithy_http/aio/crt.py` (+248/-24 lines) |
+| [`bilardi/amazon-polly-streaming`](https://github.com/bilardi/amazon-polly-streaming) | [`feature/smithy-integration`](https://github.com/bilardi/amazon-polly-streaming/tree/feature/smithy-integration) | Reference hand-rolled implementation used in benchmark 1 (`smithy_aws_core[eventstream]` + lease pool over `awscrt`) |
+| [`bilardi/realtime-speech-to-speech`](https://github.com/bilardi/realtime-speech-to-speech) | [`feature/smithy-polly`](https://github.com/bilardi/realtime-speech-to-speech/tree/feature/smithy-polly) | Application code for benchmark 1 |
+| `bilardi/realtime-speech-to-speech` | [`feature/aws-sdk-polly`](https://github.com/bilardi/realtime-speech-to-speech/tree/feature/aws-sdk-polly) | Application code for benchmark 2 (`aws-sdk-polly` vanilla) |
+| `bilardi/realtime-speech-to-speech` | [`feature/add-awscrt-connection-pool`](https://github.com/bilardi/realtime-speech-to-speech/tree/feature/add-awscrt-connection-pool) | Application code for benchmark 3 (`aws-sdk-polly` + proposed PR) |
+| `bilardi/realtime-speech-to-speech` | [`master`](https://github.com/bilardi/realtime-speech-to-speech/tree/master) | Application code for benchmark 4 (`amazon-polly-streaming` 1.1.0 from PyPI, pool without smithy stack) |
 
 ## Reproducing the benchmarks
 
